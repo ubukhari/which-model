@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.2.0 (2026-10-08)
+
+Codex first.
+
+- A Codex section leads the output: what Codex records about the model that answered, checked
+  against Codex rust-v0.162.0. Its rollouts still name only the requested model; Codex 0.162.0 has a
+  `model_reroute` event but does not write it to a rollout. What Codex keeps is one line per turn
+  in its log database, naming the model the server reported and, when it differs, the one
+  requested; which-model reads only those lines (read-only, through `node:sqlite` on Node 22.13
+  or later; the legacy `log/codex-tui.log` too), keeps their model ids past Codex's pruning in
+  `codex-served-v1.json`, and lists a Codex reroute only where that log shows one. When it shows
+  none, or cannot be read, the output says so.
+- A `model_reroute` event in a rollout is read too, should a version write one.
+- Claude Agent SDK sessions (`entrypoint` `sdk-ts`, `sdk-py`, `sdk-cli`) are counted from the same
+  transcripts; the OpenAI Agents SDK keeps no local log by default, and the output says so.
+- The per-transcript cache moves to `signals-v2/` (it now keeps each session's entrypoint and any
+  reroute event); `signals-v1/` entries are read again.
+- The bundle keeps the `node:` prefix on built-ins, so `node:sqlite` resolves.
+
 ## 0.1.0 (2026-10-08)
 
 First release: which model actually answered your coding agent, from your own machine.

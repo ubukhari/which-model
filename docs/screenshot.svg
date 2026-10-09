@@ -1,68 +1,78 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="901" height="1120" viewBox="0 0 901 1120" role="img" aria-label="which-model output on synthetic history">
+<svg xmlns="http://www.w3.org/2000/svg" width="901" height="1290" viewBox="0 0 901 1290" role="img" aria-label="which-model output on synthetic history">
   <style>text{font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:#d4d4d4}.cmd{fill:#7ee787}</style>
   <rect width="100%" height="100%" rx="8" fill="#0d1117"/>
   <text x="16" y="29" class="cmd" textLength="410.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">$ npx --allow-git=root github:agentwares/which-model</text>
   <text x="16" y="46" textLength="600.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">which-model — which model actually answered, from this machine's transcripts</text>
   <text x="16" y="63" textLength="213.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve">All history on this machine</text>
   <text x="16" y="80" xml:space="preserve"></text>
-  <text x="16" y="97" textLength="568.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Models that answered, last 7 active days (Codex: the model it requested)</text>
-  <text x="16" y="114" textLength="418.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  Wed 7 Oct   Claude Code  claude-fable-5-1 29 (100%)</text>
-  <text x="16" y="131" textLength="695.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  Tue 6 Oct   Claude Code  claude-fable-5-1 32 (84%) · claude-haiku-4-5-20251001 6 (16%)</text>
-  <text x="16" y="148" textLength="379.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">              Codex        gpt-5.6-sol 28 (100%)</text>
-  <text x="16" y="165" textLength="695.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  Mon 5 Oct   Claude Code  claude-fable-5-1 32 (84%) · claude-haiku-4-5-20251001 6 (16%)</text>
-  <text x="16" y="182" textLength="379.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">              Codex        gpt-5.6-sol 28 (100%)</text>
-  <text x="16" y="199" textLength="418.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  Sun 4 Oct   Claude Code  claude-fable-5-1 32 (100%)</text>
-  <text x="16" y="216" textLength="379.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">              Codex        gpt-5.6-sol 28 (100%)</text>
-  <text x="16" y="233" textLength="695.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  Sat 3 Oct   Claude Code  claude-fable-5-1 32 (84%) · claude-haiku-4-5-20251001 6 (16%)</text>
-  <text x="16" y="250" textLength="379.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">              Codex        gpt-5.6-sol 28 (100%)</text>
-  <text x="16" y="267" textLength="418.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  Fri 2 Oct   Claude Code  claude-fable-5-1 32 (100%)</text>
-  <text x="16" y="284" textLength="379.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">              Codex        gpt-5.6-sol 28 (100%)</text>
-  <text x="16" y="301" textLength="418.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  Thu 1 Oct   Claude Code  claude-fable-5-1 32 (100%)</text>
+  <text x="16" y="97" textLength="213.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Codex: which model answered</text>
+  <text x="16" y="114" textLength="734.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  Its rollouts (Codex 0.144.2–0.144.3 here) record the model it requested, never the one that</text>
+  <text x="16" y="131" textLength="782.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  answered. Codex 0.162.0 checks the server's model each turn and logs a mismatch as a reroute, but</text>
+  <text x="16" y="148" textLength="276.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  to its own log, not to a rollout.</text>
+  <text x="16" y="165" textLength="758.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  • There is no Codex log on this machine to read, so no reroute can be shown: its rollouts name</text>
+  <text x="16" y="182" textLength="252.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    only the model it requested.</text>
+  <text x="16" y="199" textLength="774.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  • The OpenAI Agents SDK (@openai/agents 0.20, openai-agents 0.23) keeps no local log by default:</text>
+  <text x="16" y="216" textLength="790.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    its default trace exporter sends spans to OpenAI's Traces dashboard, so there is nothing on this</text>
+  <text x="16" y="233" textLength="158.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    machine to read.</text>
+  <text x="16" y="250" xml:space="preserve"></text>
+  <text x="16" y="267" textLength="568.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Models that answered, last 7 active days (Codex: the model it requested)</text>
+  <text x="16" y="284" textLength="418.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  Wed 7 Oct   Claude Code  claude-fable-5-1 29 (100%)</text>
+  <text x="16" y="301" textLength="695.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  Tue 6 Oct   Claude Code  claude-fable-5-1 32 (84%) · claude-haiku-4-5-20251001 6 (16%)</text>
   <text x="16" y="318" textLength="379.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">              Codex        gpt-5.6-sol 28 (100%)</text>
-  <text x="16" y="335" textLength="339.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  --json lists every day and every session.</text>
-  <text x="16" y="352" xml:space="preserve"></text>
-  <text x="16" y="369" textLength="703.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Served-model switches nothing you did explains (Claude Code, main thread): 2 in 1 session</text>
-  <text x="16" y="386" textLength="418.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  16 Jul 02:42  session 63c29f12  Claude Code 2.1.197</text>
-  <text x="16" y="403" textLength="774.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    claude-fable-5 → claude-opus-4-8 after a fallback notice the client recorded (claude-fable-5 →</text>
-  <text x="16" y="420" textLength="758.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    claude-opus-4-8, trigger: refusal); served 308 responses over 21.5 h, until the next switch.</text>
-  <text x="16" y="437" textLength="418.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  17 Jul 00:15  session 63c29f12  Claude Code 2.1.197</text>
-  <text x="16" y="454" textLength="790.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    claude-opus-4-8 → claude-fable-5 with nothing recorded before it (no /model, no fallback notice,</text>
-  <text x="16" y="471" textLength="663.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    same client version); served 12 responses over 0.8 h, to the end of the session.</text>
-  <text x="16" y="488" textLength="300.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  Not listed: 1 after your own /model.</text>
-  <text x="16" y="505" textLength="790.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  Answered by a different model than the one last recorded as requested: 308 responses in 1 session.</text>
+  <text x="16" y="335" textLength="695.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  Mon 5 Oct   Claude Code  claude-fable-5-1 32 (84%) · claude-haiku-4-5-20251001 6 (16%)</text>
+  <text x="16" y="352" textLength="379.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">              Codex        gpt-5.6-sol 28 (100%)</text>
+  <text x="16" y="369" textLength="418.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  Sun 4 Oct   Claude Code  claude-fable-5-1 32 (100%)</text>
+  <text x="16" y="386" textLength="379.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">              Codex        gpt-5.6-sol 28 (100%)</text>
+  <text x="16" y="403" textLength="695.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  Sat 3 Oct   Claude Code  claude-fable-5-1 32 (84%) · claude-haiku-4-5-20251001 6 (16%)</text>
+  <text x="16" y="420" textLength="379.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">              Codex        gpt-5.6-sol 28 (100%)</text>
+  <text x="16" y="437" textLength="418.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  Fri 2 Oct   Claude Code  claude-fable-5-1 32 (100%)</text>
+  <text x="16" y="454" textLength="379.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">              Codex        gpt-5.6-sol 28 (100%)</text>
+  <text x="16" y="471" textLength="418.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  Thu 1 Oct   Claude Code  claude-fable-5-1 32 (100%)</text>
+  <text x="16" y="488" textLength="379.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">              Codex        gpt-5.6-sol 28 (100%)</text>
+  <text x="16" y="505" textLength="339.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  --json lists every day and every session.</text>
   <text x="16" y="522" xml:space="preserve"></text>
-  <text x="16" y="539" textLength="308.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Reasoning tokens per response, by model</text>
-  <text x="16" y="556" textLength="750.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  model                                    responses  zero  median    p90    p99    max  spikes</text>
-  <text x="16" y="573" textLength="734.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  Codex · gpt-5.6-sol                          2,744    0%     260    853  2,182  5,830  none</text>
-  <text x="16" y="590" textLength="734.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  Claude Code · claude-fable-5                 1,958    0%     461  1,211  2,550  5,385  none</text>
-  <text x="16" y="607" textLength="734.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  Claude Code · claude-fable-5-1               1,181    0%     415  1,203  2,746  5,203  none</text>
-  <text x="16" y="624" textLength="869.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  Codex · gpt-5.5                                648    0%     516  1,034  1,994  3,929  516 (49%), 1,034 (7%)</text>
-  <text x="16" y="641" textLength="734.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  Claude Code · claude-opus-4-8                  308    0%     328    848  1,537  2,001  none</text>
-  <text x="16" y="658" textLength="734.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  Claude Code · claude-haiku-4-5-20251001        264    0%     123    347    732    912  none</text>
-  <text x="16" y="675" textLength="790.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  • Codex · gpt-5.5: 317 responses (49%) used exactly 516 reasoning tokens, over 100x as many as the</text>
-  <text x="16" y="692" textLength="774.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    counts within 5% either side, 1 Jul–31 Aug (0.144.3) — consistent with a cap or budget at that</text>
-  <text x="16" y="709" textLength="489.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    value; it cannot show whether the reasoning was cut short.</text>
-  <text x="16" y="726" textLength="790.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  • Codex · gpt-5.5: 46 responses (7%) used exactly 1,034 reasoning tokens, over 100x as many as the</text>
-  <text x="16" y="743" textLength="774.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    counts within 5% either side, 1 Jul–28 Aug (0.144.3) — consistent with a cap or budget at that</text>
-  <text x="16" y="760" textLength="489.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    value; it cannot show whether the reasoning was cut short.</text>
-  <text x="16" y="777" xml:space="preserve"></text>
-  <text x="16" y="794" textLength="347.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Step changes (seatledger's rolling baseline)</text>
-  <text x="16" y="811" textLength="774.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  • From 13 Jul (Codex 0.144.3, the first day on it), the largest prompt of the day on gpt-5.6-sol</text>
-  <text x="16" y="828" textLength="790.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    fell 27% (343K → 251K) — consistent with a lower context ceiling, earlier compaction, or shorter</text>
-  <text x="16" y="845" textLength="639.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    sessions in your own work. It starts with Codex 0.144.3 (previously 0.144.2).</text>
-  <text x="16" y="862" xml:space="preserve"></text>
-  <text x="16" y="879" textLength="284.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Context window, as Codex reported it</text>
-  <text x="16" y="896" textLength="758.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  • From 13 Jul (Codex 0.144.3, the first day on it), Codex reported a context window of 258,400</text>
-  <text x="16" y="913" textLength="363.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    tokens for gpt-5.6-sol, down from 353,400.</text>
-  <text x="16" y="930" textLength="766.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  • Codex reported a context window of 258,400 tokens for gpt-5.5 from 1 Jul (Codex 0.144.3), the</text>
-  <text x="16" y="947" textLength="268.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    first reading in this history.</text>
-  <text x="16" y="964" textLength="766.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  • Codex reported a context window of 353,400 tokens for gpt-5.6-sol from 1 Jul (Codex 0.144.2),</text>
-  <text x="16" y="981" textLength="300.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    the first reading in this history.</text>
-  <text x="16" y="998" xml:space="preserve"></text>
-  <text x="16" y="1015" textLength="782.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Codex records the model it requested for each turn, not the model that answered, so a Codex reroute</text>
-  <text x="16" y="1032" textLength="260.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">cannot be seen from its rollouts.</text>
-  <text x="16" y="1049" textLength="750.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">A switch with nothing recorded before it is not proof of a reroute: a model picked in a way the</text>
-  <text x="16" y="1066" textLength="750.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">transcript does not record (a picker, or a relaunch with --model on the same version) looks the</text>
-  <text x="16" y="1083" textLength="39.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">same.</text>
-  <text x="16" y="1100" textLength="782.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Read 143 Claude Code transcripts and 125 Codex rollouts on this machine. Nothing was sent anywhere.</text>
+  <text x="16" y="539" textLength="703.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Served-model switches nothing you did explains (Claude Code, main thread): 2 in 1 session</text>
+  <text x="16" y="556" textLength="418.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  16 Jul 02:42  session 63c29f12  Claude Code 2.1.197</text>
+  <text x="16" y="573" textLength="774.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    claude-fable-5 → claude-opus-4-8 after a fallback notice the client recorded (claude-fable-5 →</text>
+  <text x="16" y="590" textLength="758.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    claude-opus-4-8, trigger: refusal); served 308 responses over 21.5 h, until the next switch.</text>
+  <text x="16" y="607" textLength="418.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  17 Jul 00:15  session 63c29f12  Claude Code 2.1.197</text>
+  <text x="16" y="624" textLength="790.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    claude-opus-4-8 → claude-fable-5 with nothing recorded before it (no /model, no fallback notice,</text>
+  <text x="16" y="641" textLength="663.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    same client version); served 12 responses over 0.8 h, to the end of the session.</text>
+  <text x="16" y="658" textLength="300.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  Not listed: 1 after your own /model.</text>
+  <text x="16" y="675" textLength="790.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  Answered by a different model than the one last recorded as requested: 308 responses in 1 session.</text>
+  <text x="16" y="692" xml:space="preserve"></text>
+  <text x="16" y="709" textLength="308.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Reasoning tokens per response, by model</text>
+  <text x="16" y="726" textLength="750.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  model                                    responses  zero  median    p90    p99    max  spikes</text>
+  <text x="16" y="743" textLength="734.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  Codex · gpt-5.6-sol                          2,744    0%     260    853  2,182  5,830  none</text>
+  <text x="16" y="760" textLength="734.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  Claude Code · claude-fable-5                 1,958    0%     461  1,211  2,550  5,385  none</text>
+  <text x="16" y="777" textLength="734.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  Claude Code · claude-fable-5-1               1,181    0%     415  1,203  2,746  5,203  none</text>
+  <text x="16" y="794" textLength="869.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  Codex · gpt-5.5                                648    0%     516  1,034  1,994  3,929  516 (49%), 1,034 (7%)</text>
+  <text x="16" y="811" textLength="734.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  Claude Code · claude-opus-4-8                  308    0%     328    848  1,537  2,001  none</text>
+  <text x="16" y="828" textLength="734.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  Claude Code · claude-haiku-4-5-20251001        264    0%     123    347    732    912  none</text>
+  <text x="16" y="845" textLength="790.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  • Codex · gpt-5.5: 317 responses (49%) used exactly 516 reasoning tokens, over 100x as many as the</text>
+  <text x="16" y="862" textLength="774.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    counts within 5% either side, 1 Jul–31 Aug (0.144.3) — consistent with a cap or budget at that</text>
+  <text x="16" y="879" textLength="489.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    value; it cannot show whether the reasoning was cut short.</text>
+  <text x="16" y="896" textLength="790.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  • Codex · gpt-5.5: 46 responses (7%) used exactly 1,034 reasoning tokens, over 100x as many as the</text>
+  <text x="16" y="913" textLength="774.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    counts within 5% either side, 1 Jul–28 Aug (0.144.3) — consistent with a cap or budget at that</text>
+  <text x="16" y="930" textLength="489.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    value; it cannot show whether the reasoning was cut short.</text>
+  <text x="16" y="947" xml:space="preserve"></text>
+  <text x="16" y="964" textLength="347.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Step changes (seatledger's rolling baseline)</text>
+  <text x="16" y="981" textLength="774.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  • From 13 Jul (Codex 0.144.3, the first day on it), the largest prompt of the day on gpt-5.6-sol</text>
+  <text x="16" y="998" textLength="790.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    fell 27% (343K → 251K) — consistent with a lower context ceiling, earlier compaction, or shorter</text>
+  <text x="16" y="1015" textLength="639.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    sessions in your own work. It starts with Codex 0.144.3 (previously 0.144.2).</text>
+  <text x="16" y="1032" xml:space="preserve"></text>
+  <text x="16" y="1049" textLength="284.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Context window, as Codex reported it</text>
+  <text x="16" y="1066" textLength="758.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  • From 13 Jul (Codex 0.144.3, the first day on it), Codex reported a context window of 258,400</text>
+  <text x="16" y="1083" textLength="363.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    tokens for gpt-5.6-sol, down from 353,400.</text>
+  <text x="16" y="1100" textLength="766.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  • Codex reported a context window of 258,400 tokens for gpt-5.5 from 1 Jul (Codex 0.144.3), the</text>
+  <text x="16" y="1117" textLength="268.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    first reading in this history.</text>
+  <text x="16" y="1134" textLength="766.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  • Codex reported a context window of 353,400 tokens for gpt-5.6-sol from 1 Jul (Codex 0.144.2),</text>
+  <text x="16" y="1151" textLength="300.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    the first reading in this history.</text>
+  <text x="16" y="1168" xml:space="preserve"></text>
+  <text x="16" y="1185" textLength="782.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Codex records the model it requested for each turn, not the model that answered, so a Codex reroute</text>
+  <text x="16" y="1202" textLength="505.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">can be seen only where Codex logs one itself (see Codex, above).</text>
+  <text x="16" y="1219" textLength="750.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">A switch with nothing recorded before it is not proof of a reroute: a model picked in a way the</text>
+  <text x="16" y="1236" textLength="750.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">transcript does not record (a picker, or a relaunch with --model on the same version) looks the</text>
+  <text x="16" y="1253" textLength="39.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">same.</text>
+  <text x="16" y="1270" textLength="782.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Read 143 Claude Code transcripts and 125 Codex rollouts on this machine. Nothing was sent anywhere.</text>
 </svg>

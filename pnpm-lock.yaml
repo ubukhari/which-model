@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       seatledger:
-        specifier: ^0.2.1
-        version: 0.2.1
+        specifier: ^0.3.0
+        version: 0.3.0
     devDependencies:
       '@eslint/js':
         specifier: ^10.0.1
@@ -1066,8 +1066,8 @@ packages:
     engines: {node: '>=18.0.0', npm: '>=8.0.0'}
     hasBin: true
 
-  seatledger@0.2.1:
-    resolution: {integrity: sha512-1cPmiAc+N3mdJAzk2/kkQRBPIN8CfedhzuZluA3rKciAM//b1HOIY3G2gGx9z+ApcmKX59ScfJX1K/nafNualQ==}
+  seatledger@0.3.0:
+    resolution: {integrity: sha512-rdM3WMvokn/J84FfZq5qGC2SYo0EPPmdZcuG7lslz6a8PJg1QzVwu39auMRfNdAOZV2UQlpl16soxkGvyKfTCQ==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -2182,7 +2182,7 @@ snapshots:
       '@rollup/rollup-win32-x64-msvc': 4.64.3
       fsevents: 2.3.3
 
-  seatledger@0.2.1: {}
+  seatledger@0.3.0: {}
 
   semver@7.8.5: {}
 

@@ -1,6 +1,6 @@
 ---
 name: which-model
-description: Explain which model actually answered this machine's Claude Code and Codex sessions - models by day and session, served-model switches nothing the user did explains (with any fallback notice the client recorded), reasoning-token spikes at fixed values such as 516, and step changes in context ceiling or tokens per task with the date and client version - by running which-model on the local transcripts. Use when the user suspects Claude Code switched or rerouted their model, that a model got worse or reasons less, or that Codex cut its context window.
+description: Explain which model actually answered this machine's Claude Code and Codex sessions - for Codex, the reroutes its own log records, since its rollouts name only the requested model - models by day and session, served-model switches nothing the user did explains (with any fallback notice the client recorded), reasoning-token spikes at fixed values such as 516, and step changes in context ceiling or tokens per task with the date and client version - by running which-model on the local transcripts. Use when the user suspects Claude Code or Codex switched or rerouted their model, that a model got worse or reasons less, or that Codex cut its context window.
 argument-hint: "[--since 90d] [--client claude-code|codex] [--session <id>]"
 ---
 
@@ -31,8 +31,11 @@ Then explain it in plain words:
 3. **Step changes and context windows**: what moved, from when, by how much, on which model and
    client version, and the finding's own "consistent with" wording. Codex's context window is the
    value Codex itself reported.
-4. **Codex**: its rollouts record the model it requested, never the one that answered, so a Codex
-   reroute cannot be seen; say so if the user asks about one.
+4. **Codex**: its rollouts record the model it requested, never the one that answered. Codex logs
+   the model the server reported, and a mismatch, to its own log database, and which-model lists
+   a Codex reroute only where that log shows one. Read back the output's Codex section as it is:
+   if it shows a reroute, give the models, the date and that Codex itself logged it; if it shows
+   none, or the log could not be read, say that no reroute can be shown, not that none happened.
 
 which-model never names a cause and neither should you: it sees the user's machine, not the
 vendor's servers. Its output holds model ids, versions, dates, counts and session ids only, so

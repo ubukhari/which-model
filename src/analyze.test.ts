@@ -5,6 +5,7 @@
  */
 import { beforeAll, describe, expect, it } from "vitest";
 import {
+  analyze,
   baseModel,
   differentModel,
   findSpikes,
@@ -143,6 +144,97 @@ describe("step changes and context windows", () => {
 
   it("says Codex records the requested model, not the one that answered", () => {
     expect(report.notes.join(" ")).toContain("Codex records the model it requested");
+  });
+});
+
+describe("Codex: which model answered", () => {
+  it("on the synthetic history: rollouts name the requested model, and there is no log to read", () => {
+    const c = report.codex!;
+    expect(c.rolloutsRecordServed).toBe(false);
+    expect(c.versions).toEqual(["0.144.2", "0.144.3"]);
+    expect(c.checked.version).toBe("0.162.0");
+    expect(c.reroutes).toEqual([]);
+    expect(c.sentence).toMatch(/no Codex log on this machine/);
+    expect(demo.text.indexOf("Codex: which model answered")).toBeLessThan(
+      demo.text.indexOf("Models that answered"),
+    );
+  });
+
+  const NOW = Date.parse("2026-10-08T00:00:00Z");
+  const base = () => ({
+    ...demo.input,
+    now: NOW,
+    codexLog: {
+      databases: 1,
+      textLogs: 0,
+      unread: [],
+      lines: 900,
+      from: NOW - 3 * 86_400_000,
+      to: NOW - 3_600_000,
+      served: [
+        {
+          ts: NOW - 2 * 86_400_000,
+          thread: "019a0000-aaaa",
+          served: "gpt-5.3-codex",
+          requested: null,
+        },
+        {
+          ts: NOW - 86_400_000,
+          thread: "019a0000-bbbb",
+          served: "gpt-5.2",
+          requested: "gpt-5.3-codex",
+        },
+      ],
+    },
+  });
+
+  it("lists a reroute where Codex's own log records one, and only there", () => {
+    const r = analyze(base());
+    expect(r.codex!.reroutes).toEqual([
+      {
+        at: new Date(NOW - 86_400_000).toISOString(),
+        thread: "019a0000-bbbb",
+        requested: "gpt-5.3-codex",
+        served: "gpt-5.2",
+        source: "log",
+        reason: "",
+      },
+    ]);
+    expect(r.codex!.log).toMatchObject({ served: 2, matched: 1 });
+    expect(r.codex!.sentence).toContain("gpt-5.3-codex → gpt-5.2");
+    expect(r.notes.join(" ")).not.toContain("can be seen only where Codex logs one");
+  });
+
+  it("a log with every served model as requested, or none named, shows no reroute", () => {
+    const input = base();
+    const matched = analyze({
+      ...input,
+      codexLog: { ...input.codexLog, served: [input.codexLog.served[0]!] },
+    });
+    expect(matched.codex!.reroutes).toEqual([]);
+    expect(matched.codex!.sentence).toMatch(/each was the model it requested/);
+    const silent = analyze({ ...input, codexLog: { ...input.codexLog, served: [] } });
+    expect(silent.codex!.sentence).toMatch(/has no line naming the model that answered/);
+    const unread = analyze({
+      ...input,
+      codexLog: {
+        ...input.codexLog,
+        lines: 0,
+        served: [],
+        unread: [{ reason: "old Node", count: 1 }],
+      },
+    });
+    expect(unread.codex!.sentence).toMatch(/could not be read: old Node/);
+  });
+
+  it("counts the Claude Agent SDK's sessions, and says the OpenAI Agents SDK keeps no local log", () => {
+    const session = demo.input.requests.find((r) => r.client === "claude-code")!.session;
+    const entrypoints = new Map([[session, "sdk-py"]]);
+    const r = analyze({ ...demo.input, signals: { ...demo.input.signals, entrypoints } });
+    expect(r.sdk.claudeAgentSdk.sessions).toBe(1);
+    expect(r.sdk.claudeAgentSdk.responses).toBeGreaterThan(0);
+    expect(r.sdk.openaiAgentsSdk).toMatch(/keeps no local log by default/);
+    expect(report.sdk.claudeAgentSdk.sessions).toBe(0);
   });
 });
 

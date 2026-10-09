@@ -1,6 +1,6 @@
 {
   "name": "which-model",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Which model actually answered your coding agent, from your own machine: Claude Code and Codex transcripts read locally for served-model switches and the notices before them, reasoning-token spikes at fixed values, and step changes in context ceiling or tokens per task. Sends nothing.",
   "license": "MIT",
   "type": "module",
@@ -60,7 +60,7 @@
     "build:dist": "tsup"
   },
   "dependencies": {
-    "seatledger": "^0.2.1"
+    "seatledger": "^0.3.0"
   },
   "packageManager": "pnpm@9.15.9",
   "devDependencies": {

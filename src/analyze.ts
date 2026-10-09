@@ -33,7 +33,18 @@ import {
   type SourceSummary,
   type UsageRecord,
 } from "seatledger";
+import type { CodexLog } from "./codex-log.js";
 import type { Compaction, FallbackNotice, ModelChoice, Signals, WindowReading } from "./signals.js";
+
+/** The Codex release whose source this was checked against, and when. */
+export const CODEX_CHECKED = { version: "0.162.0", tag: "rust-v0.162.0", date: "2026-10-08" };
+
+/** The Claude Agent SDK's sessions, as Claude Code's transcripts mark them. */
+export const AGENT_SDK_ENTRYPOINTS: ReadonlySet<string> = new Set(["sdk-ts", "sdk-py", "sdk-cli"]);
+
+/** What the OpenAI Agents SDK keeps on the machine it runs on (read 8 Oct 2026). */
+export const OPENAI_AGENTS_SDK =
+  "the OpenAI Agents SDK (@openai/agents 0.20, openai-agents 0.23) keeps no local log by default: its default trace exporter sends spans to OpenAI's Traces dashboard, so there is nothing on this machine to read";
 
 type DayPoint = Series["days"][number];
 
@@ -174,12 +185,57 @@ export interface WindowChange {
   sentence: string;
 }
 
+/** A response Codex shows was answered by a model other than the one it requested. */
+export interface CodexReroute {
+  at: string;
+  /** Codex's thread id, when the record names one. */
+  thread: string | null;
+  requested: string;
+  served: string;
+  /** `log`: Codex's own log line. `rollout`: a `model_reroute` event in a rollout. */
+  source: "log" | "rollout";
+  /** As Codex recorded it (`high_risk_cyber_activity`), or "" when the log line does not say. */
+  reason: string;
+}
+
+/** Which model answered Codex, from everything Codex writes locally. */
+export interface CodexSection {
+  /** Codex versions whose rollouts are in this range. */
+  versions: string[];
+  responses: number;
+  /** Rollouts record the model Codex requested; true only if a rollout holds a reroute event. */
+  rolloutsRecordServed: boolean;
+  checked: typeof CODEX_CHECKED;
+  /** Codex's log database and text log; null when there is no Codex home to look in. */
+  log: {
+    databases: number;
+    textLogs: number;
+    unread: { reason: string; count: number }[];
+    lines: number;
+    from: string | null;
+    to: string | null;
+    /** "server reported model" lines, and those where the served model matched the request. */
+    served: number;
+    matched: number;
+  } | null;
+  reroutes: CodexReroute[];
+  sentence: string;
+}
+
+export interface SdkSection {
+  /** Claude Agent SDK sessions in the Claude Code transcripts (entrypoint sdk-ts, sdk-py, sdk-cli). */
+  claudeAgentSdk: { sessions: number; responses: number; switches: number };
+  openaiAgentsSdk: string;
+}
+
 export interface Report {
   generatedAt: string;
   /** First day covered, YYYY-MM-DD, or null for all history. */
   since: string | null;
   method: string;
   sources: SourceSummary[];
+  codex: CodexSection | null;
+  sdk: SdkSection;
   days: ModelDay[];
   sessions: SessionSummary[];
   switches: Switch[];
@@ -275,6 +331,8 @@ export interface AnalyzeInput {
   requests: readonly UsageRecord[];
   signals: Signals;
   sources: SourceSummary[];
+  /** What Codex logged about the model that answered; null when Codex was not read. */
+  codexLog?: CodexLog | null;
   now: number;
   since?: number | undefined;
 }
@@ -308,10 +366,29 @@ export function analyze(input: AnalyzeInput): Report {
     ),
   ].sort((a, b) => b.date.localeCompare(a.date) || a.model.localeCompare(b.model));
 
+  const codex = codexSection(input);
+  const sdkSessions = new Set(
+    [...signals.entrypoints].filter(([, e]) => AGENT_SDK_ENTRYPOINTS.has(e)).map(([s]) => s),
+  );
+  const sdk: SdkSection = {
+    claudeAgentSdk: {
+      sessions: sdkSessions.size,
+      responses: requests.filter((r) => r.client === "claude-code" && sdkSessions.has(r.session))
+        .length,
+      switches: switches.filter(
+        (s) =>
+          s.client === "claude-code" &&
+          sdkSessions.has(s.session) &&
+          (s.recorded === "fallback-notice" || s.recorded === "nothing"),
+      ).length,
+    },
+    openaiAgentsSdk: OPENAI_AGENTS_SDK,
+  };
+
   const notes: string[] = [];
-  if (requests.some((r) => r.client === "codex"))
+  if (codex && codex.reroutes.length === 0)
     notes.push(
-      "Codex records the model it requested for each turn, not the model that answered, so a Codex reroute cannot be seen from its rollouts.",
+      "Codex records the model it requested for each turn, not the model that answered, so a Codex reroute can be seen only where Codex logs one itself (see Codex, above).",
     );
   if (switches.some((s) => s.recorded === "nothing"))
     notes.push(
@@ -323,6 +400,8 @@ export function analyze(input: AnalyzeInput): Report {
     since: input.since === undefined ? null : dayKey(input.since),
     method: METHOD,
     sources: input.sources,
+    codex,
+    sdk,
     days: modelDays(requests),
     sessions,
     switches,
@@ -496,6 +575,86 @@ function codexChanges(requests: readonly UsageRecord[]): Switch[] {
     }
   }
   return out;
+}
+
+const MONTH_DAY = (ts: number) => shortDate(dayKey(ts));
+
+/**
+ * What Codex itself records about the model that answered: its rollouts (the requested model, and a
+ * `model_reroute` event should a version ever write one) and its own log's "server reported model"
+ * lines. A reroute is listed only where Codex recorded one; nothing is inferred.
+ */
+function codexSection(input: AnalyzeInput): CodexSection | null {
+  const codex = input.requests.filter((r) => r.client === "codex");
+  const log = input.codexLog ?? null;
+  const found = log && (log.databases > 0 || log.textLogs > 0);
+  if (codex.length === 0 && !found && input.signals.reroutes.length === 0) return null;
+  const inRange = (ts: number) =>
+    ts <= input.now && (input.since === undefined || ts >= input.since);
+
+  const reroutes: CodexReroute[] = [
+    ...input.signals.reroutes
+      .filter((x) => inRange(x.ts))
+      .map((x) => ({
+        at: new Date(x.ts).toISOString(),
+        thread: x.session || null,
+        requested: x.from,
+        served: x.to,
+        source: "rollout" as const,
+        reason: x.reason,
+      })),
+    ...(log?.served ?? [])
+      .filter((x) => x.requested !== null && inRange(x.ts))
+      .map((x) => ({
+        at: new Date(x.ts).toISOString(),
+        thread: x.thread,
+        requested: x.requested!,
+        served: x.served,
+        source: "log" as const,
+        reason: "",
+      })),
+  ].sort((a, b) => a.at.localeCompare(b.at));
+
+  const served = (log?.served ?? []).filter((x) => inRange(x.ts));
+  const versions = [...new Set(codex.map((r) => r.version).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b, "en", { numeric: true }),
+  );
+  let sentence: string;
+  if (reroutes.length > 0) {
+    const pairs = [...new Set(reroutes.map((r) => `${r.requested} → ${r.served}`))].join(", ");
+    const first = Date.parse(reroutes[0]!.at);
+    const last = Date.parse(reroutes[reroutes.length - 1]!.at);
+    sentence = `Codex's own records show ${int(reroutes.length)} response${reroutes.length === 1 ? "" : "s"} answered by another model than the one it requested (${pairs}), ${MONTH_DAY(first)}${last - first > 86_400_000 ? `–${MONTH_DAY(last)}` : ""}: a reroute as Codex recorded it.`;
+  } else if (served.length > 0) {
+    sentence = `Codex's log names the model that answered ${int(served.length)} response${served.length === 1 ? "" : "s"}, and each was the model it requested.`;
+  } else if (log && log.unread.length > 0 && log.lines === 0) {
+    sentence = `Codex's log is on this machine but could not be read: ${log.unread.map((u) => u.reason).join("; ")}.`;
+  } else if (found && log) {
+    sentence = `Codex's log (${int(log.lines)} lines${log.from !== null && log.to !== null ? `, ${MONTH_DAY(log.from)}–${MONTH_DAY(log.to)}` : ""}) has no line naming the model that answered, so no reroute can be shown. Codex prunes its log, so it covers days, not months.`;
+  } else {
+    sentence =
+      "There is no Codex log on this machine to read, so no reroute can be shown: its rollouts name only the model it requested.";
+  }
+  return {
+    versions,
+    responses: codex.length,
+    rolloutsRecordServed: input.signals.reroutes.length > 0,
+    checked: CODEX_CHECKED,
+    log: log
+      ? {
+          databases: log.databases,
+          textLogs: log.textLogs,
+          unread: log.unread,
+          lines: log.lines,
+          from: log.from === null ? null : new Date(log.from).toISOString(),
+          to: log.to === null ? null : new Date(log.to).toISOString(),
+          served: served.length,
+          matched: served.filter((x) => x.requested === null).length,
+        }
+      : null,
+    reroutes,
+    sentence,
+  };
 }
 
 function switchSentence(s: Switch): string {

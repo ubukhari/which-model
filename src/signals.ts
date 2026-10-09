@@ -13,15 +13,19 @@
  * - **a fallback the client recorded** (Claude Code): a `system` line whose subtype names a
  *   fallback, with `originalModel` and `fallbackModel` (seen as `model_refusal_fallback`);
  * - **auto-compaction points** (Claude Code): `compact_boundary` lines' `compactMetadata.preTokens`;
- * - **the context window Codex reports** for the model: `token_count`'s `model_context_window`.
+ * - **the context window Codex reports** for the model: `token_count`'s `model_context_window`;
+ * - **what started a session** (Claude Code): `entrypoint`, which the Claude Agent SDK sets to
+ *   `sdk-ts`, `sdk-py` or `sdk-cli` (its sessions are written to the same transcripts);
+ * - **a Codex reroute in a rollout**: `event_msg` `model_reroute` with `from_model` and `to_model`.
+ *   Codex 0.162.0 emits it but does not persist it (`codex-log.ts` reads where it does log it).
  *
  * Verified on 8 Oct 2026 against Claude Code transcripts written by 2.1.170–2.1.286 and Codex
  * rollouts written by 0.144–0.159 on a real machine, reading key names, model ids, counts and
- * dates only. Nothing here can hold prompt or response text: every field is a count, a timestamp,
- * an id, or a model id the client wrote.
+ * dates only, and against the Codex source at rust-v0.162.0. Nothing here can hold prompt or
+ * response text: every field is a count, a timestamp, an id, or a name the client wrote.
  *
  * The extracts are cached per transcript by size and modification time under
- * `~/.which-model/signals-v1/`, beside seatledger's own cache of the counts (`cache-v1`), so a
+ * `~/.which-model/signals-v2/`, beside seatledger's own cache of the counts (`cache-v1`), so a
  * second run reads only what changed and history the client has since deleted is kept.
  */
 import { createHash } from "node:crypto";
@@ -82,6 +86,26 @@ export interface Compaction {
   version: string;
 }
 
+/**
+ * A Codex reroute written into a rollout: `event_msg` with `type: "model_reroute"`. Codex 0.162.0
+ * emits the event but its rollout policy drops it as transient, so no rollout on record has one;
+ * it is read here so the day a version persists it, it is counted.
+ */
+export interface CodexReroute {
+  session: string;
+  ts: number;
+  from: string;
+  to: string;
+  reason: string;
+}
+
+/** What started a Claude Code session: `cli`, `claude-desktop`, or the Agent SDK's `sdk-ts`, … */
+export interface SessionEntry {
+  session: string;
+  ts: number;
+  entrypoint: string;
+}
+
 export interface SignalExtract {
   client: Client;
   responses: ResponseSignal[];
@@ -89,6 +113,8 @@ export interface SignalExtract {
   choices: ModelChoice[];
   fallbacks: FallbackNotice[];
   compactions: Compaction[];
+  reroutes: CodexReroute[];
+  entrypoints: SessionEntry[];
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -170,6 +196,7 @@ export async function readClaudeCodeSignals(file: string): Promise<SignalExtract
   const choices: ModelChoice[] = [];
   const fallbacks: FallbackNotice[] = [];
   const compactions: Compaction[] = [];
+  const entrypoints = new Map<string, SessionEntry>();
 
   await eachLine(
     file,
@@ -187,6 +214,9 @@ export async function readClaudeCodeSignals(file: string): Promise<SignalExtract
         const usage = obj(message?.usage);
         const model = str(message?.model);
         if (!message || !usage || !model || model === "<synthetic>") return;
+        const entrypoint = str(line.entrypoint);
+        if (entrypoint && session && ts !== undefined && !entrypoints.has(session))
+          entrypoints.set(session, { session, ts, entrypoint });
         const messageId = str(message.id) ?? str(line.uuid);
         if (!messageId) return;
         // seatledger's request id for the same response (readers/claude-code.ts)
@@ -252,6 +282,8 @@ export async function readClaudeCodeSignals(file: string): Promise<SignalExtract
     choices,
     fallbacks,
     compactions,
+    reroutes: [],
+    entrypoints: [...entrypoints.values()],
   };
 }
 
@@ -262,6 +294,7 @@ export async function readClaudeCodeSignals(file: string): Promise<SignalExtract
 export async function readCodexSignals(file: string): Promise<SignalExtract> {
   const byKey = new Map<string, ResponseSignal>();
   const windows: WindowReading[] = [];
+  const reroutes: CodexReroute[] = [];
   let thread = "";
   let lastWindow = -1;
 
@@ -270,12 +303,20 @@ export async function readCodexSignals(file: string): Promise<SignalExtract> {
     (raw) =>
       raw.includes('"token_count"') ||
       raw.includes('"token_usage_record"') ||
-      raw.includes('"session_meta"'),
+      raw.includes('"session_meta"') ||
+      raw.includes('"model_reroute"'),
     (line) => {
       const payload = obj(line.payload) ?? {};
       const ts = time(line.timestamp);
       if (line.type === "session_meta") {
         thread = str(payload.id) ?? thread;
+        return;
+      }
+      if (line.type === "event_msg" && payload.type === "model_reroute") {
+        const from = str(payload.from_model);
+        const to = str(payload.to_model);
+        if (from && to && ts !== undefined)
+          reroutes.push({ session: thread, ts, from, to, reason: str(payload.reason) ?? "" });
         return;
       }
       if (line.type === "token_usage_record") {
@@ -309,8 +350,9 @@ export async function readCodexSignals(file: string): Promise<SignalExtract> {
     },
   );
 
-  // A window reading taken before the thread id was seen belongs to the thread.
+  // A reading taken before the thread id was seen belongs to the thread.
   for (const w of windows) if (!w.session) w.session = thread;
+  for (const r of reroutes) if (!r.session) r.session = thread;
   return {
     client: "codex",
     responses: [...byKey.values()],
@@ -318,6 +360,8 @@ export async function readCodexSignals(file: string): Promise<SignalExtract> {
     choices: [],
     fallbacks: [],
     compactions: [],
+    reroutes,
+    entrypoints: [],
   };
 }
 
@@ -330,10 +374,11 @@ const READERS: Record<Client, (file: string) => Promise<SignalExtract>> = {
 // Cache: one small file per transcript, counts and ids only
 // ---------------------------------------------------------------------------------------------
 
-export const SIGNALS_DIR = "signals-v1";
+/** v2 (SEAT-2) adds Codex reroute events and each session's entrypoint; v1 entries are re-read. */
+export const SIGNALS_DIR = "signals-v2";
 
 interface Wire {
-  v: 1;
+  v: 2;
   src: string;
   size: number;
   mtimeMs: number;
@@ -344,6 +389,10 @@ interface Wire {
   c: [string, number, string][];
   f: [string, number, string, string, string, 0 | 1, string][];
   k: [string, number, number, string, 0 | 1, string][];
+  /** session, ts, from, to, reason */
+  x: [string, number, string, string, string][];
+  /** session, ts, entrypoint */
+  e: [string, number, string][];
 }
 
 interface Cached extends SignalExtract {
@@ -353,7 +402,7 @@ interface Cached extends SignalExtract {
 }
 
 const encode = (e: Cached): Wire => ({
-  v: 1,
+  v: 2,
   src: e.src,
   size: e.size,
   mtimeMs: e.mtimeMs,
@@ -363,6 +412,8 @@ const encode = (e: Cached): Wire => ({
   c: e.choices.map((c) => [c.session, c.ts, c.model]),
   f: e.fallbacks.map((f) => [f.session, f.ts, f.from, f.to, f.trigger, f.main ? 1 : 0, f.version]),
   k: e.compactions.map((k) => [k.session, k.ts, k.preTokens, k.trigger, k.main ? 1 : 0, k.version]),
+  x: e.reroutes.map((x) => [x.session, x.ts, x.from, x.to, x.reason]),
+  e: e.entrypoints.map((x) => [x.session, x.ts, x.entrypoint]),
 });
 
 const decode = (w: Wire): Cached => ({
@@ -390,6 +441,14 @@ const decode = (w: Wire): Cached => ({
     main: main === 1,
     version,
   })),
+  reroutes: (w.x ?? []).map(([session, ts, from, to, reason]) => ({
+    session,
+    ts,
+    from,
+    to,
+    reason,
+  })),
+  entrypoints: (w.e ?? []).map(([session, ts, entrypoint]) => ({ session, ts, entrypoint })),
 });
 
 function readSignalCache(home: string): Map<string, Cached> {
@@ -405,7 +464,7 @@ function readSignalCache(home: string): Map<string, Cached> {
     if (!name.endsWith(".json")) continue;
     try {
       const wire = JSON.parse(readFileSync(path.join(dir, name), "utf8")) as Wire;
-      if (wire.v !== 1 || typeof wire.src !== "string") continue;
+      if (wire.v !== 2 || typeof wire.src !== "string") continue;
       out.set(wire.src, decode(wire));
     } catch {
       // an interrupted write; the transcript is read again
@@ -448,6 +507,9 @@ export interface Signals {
   choices: ModelChoice[];
   fallbacks: FallbackNotice[];
   compactions: Compaction[];
+  reroutes: CodexReroute[];
+  /** Claude Code session → what started it (`cli`, `claude-desktop`, `sdk-ts`, …). */
+  entrypoints: Map<string, string>;
 }
 
 const under = (file: string, roots: string[]): boolean =>
@@ -506,8 +568,13 @@ export async function loadSignals(opts: SignalOptions): Promise<Signals> {
     choices: [] as ModelChoice[],
     fallbacks: [] as FallbackNotice[],
     compactions: [] as Compaction[],
+    reroutes: [] as CodexReroute[],
   };
+  const entrypoints = new Map<string, string>();
   for (const e of extracts) {
+    for (const x of e.entrypoints ?? [])
+      if (!entrypoints.has(x.session)) entrypoints.set(x.session, x.entrypoint);
+    all.reroutes.push(...(e.reroutes ?? []));
     for (const r of e.responses) {
       const prev = responses.get(r.key);
       responses.set(
@@ -537,5 +604,7 @@ export async function loadSignals(opts: SignalOptions): Promise<Signals> {
     choices: keyed(all.choices),
     fallbacks: keyed(all.fallbacks),
     compactions: keyed(all.compactions),
+    reroutes: keyed(all.reroutes),
+    entrypoints,
   };
 }

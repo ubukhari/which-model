@@ -5,6 +5,9 @@ import {
   dayKey,
   detectSteps
 } from "seatledger";
+var CODEX_CHECKED = { version: "0.162.0", tag: "rust-v0.162.0", date: "2026-10-08" };
+var AGENT_SDK_ENTRYPOINTS = /* @__PURE__ */ new Set(["sdk-ts", "sdk-py", "sdk-cli"]);
+var OPENAI_AGENTS_SDK = "the OpenAI Agents SDK (@openai/agents 0.20, openai-agents 0.23) keeps no local log by default: its default trace exporter sends spans to OpenAI's Traces dashboard, so there is nothing on this machine to read";
 var MIN_SPIKE_TOKENS = 64;
 var SPIKE_RATIO = 8;
 var SPIKE_MIN_SHARE = 0.01;
@@ -90,10 +93,24 @@ function analyze(input) {
       signals.compactions.filter((c) => dayKey(c.ts) !== today)
     )
   ].sort((a, b) => b.date.localeCompare(a.date) || a.model.localeCompare(b.model));
+  const codex = codexSection(input);
+  const sdkSessions = new Set(
+    [...signals.entrypoints].filter(([, e]) => AGENT_SDK_ENTRYPOINTS.has(e)).map(([s]) => s)
+  );
+  const sdk = {
+    claudeAgentSdk: {
+      sessions: sdkSessions.size,
+      responses: requests.filter((r) => r.client === "claude-code" && sdkSessions.has(r.session)).length,
+      switches: switches.filter(
+        (s) => s.client === "claude-code" && sdkSessions.has(s.session) && (s.recorded === "fallback-notice" || s.recorded === "nothing")
+      ).length
+    },
+    openaiAgentsSdk: OPENAI_AGENTS_SDK
+  };
   const notes = [];
-  if (requests.some((r) => r.client === "codex"))
+  if (codex && codex.reroutes.length === 0)
     notes.push(
-      "Codex records the model it requested for each turn, not the model that answered, so a Codex reroute cannot be seen from its rollouts."
+      "Codex records the model it requested for each turn, not the model that answered, so a Codex reroute can be seen only where Codex logs one itself (see Codex, above)."
     );
   if (switches.some((s) => s.recorded === "nothing"))
     notes.push(
@@ -104,6 +121,8 @@ function analyze(input) {
     since: input.since === void 0 ? null : dayKey(input.since),
     method: METHOD,
     sources: input.sources,
+    codex,
+    sdk,
     days: modelDays(requests),
     sessions,
     switches,
@@ -246,6 +265,69 @@ function codexChanges(requests) {
     }
   }
   return out;
+}
+var MONTH_DAY = (ts) => shortDate(dayKey(ts));
+function codexSection(input) {
+  const codex = input.requests.filter((r) => r.client === "codex");
+  const log = input.codexLog ?? null;
+  const found = log && (log.databases > 0 || log.textLogs > 0);
+  if (codex.length === 0 && !found && input.signals.reroutes.length === 0) return null;
+  const inRange = (ts) => ts <= input.now && (input.since === void 0 || ts >= input.since);
+  const reroutes = [
+    ...input.signals.reroutes.filter((x) => inRange(x.ts)).map((x) => ({
+      at: new Date(x.ts).toISOString(),
+      thread: x.session || null,
+      requested: x.from,
+      served: x.to,
+      source: "rollout",
+      reason: x.reason
+    })),
+    ...(log?.served ?? []).filter((x) => x.requested !== null && inRange(x.ts)).map((x) => ({
+      at: new Date(x.ts).toISOString(),
+      thread: x.thread,
+      requested: x.requested,
+      served: x.served,
+      source: "log",
+      reason: ""
+    }))
+  ].sort((a, b) => a.at.localeCompare(b.at));
+  const served = (log?.served ?? []).filter((x) => inRange(x.ts));
+  const versions = [...new Set(codex.map((r) => r.version).filter(Boolean))].sort(
+    (a, b) => a.localeCompare(b, "en", { numeric: true })
+  );
+  let sentence;
+  if (reroutes.length > 0) {
+    const pairs = [...new Set(reroutes.map((r) => `${r.requested} \u2192 ${r.served}`))].join(", ");
+    const first = Date.parse(reroutes[0].at);
+    const last = Date.parse(reroutes[reroutes.length - 1].at);
+    sentence = `Codex's own records show ${int(reroutes.length)} response${reroutes.length === 1 ? "" : "s"} answered by another model than the one it requested (${pairs}), ${MONTH_DAY(first)}${last - first > 864e5 ? `\u2013${MONTH_DAY(last)}` : ""}: a reroute as Codex recorded it.`;
+  } else if (served.length > 0) {
+    sentence = `Codex's log names the model that answered ${int(served.length)} response${served.length === 1 ? "" : "s"}, and each was the model it requested.`;
+  } else if (log && log.unread.length > 0 && log.lines === 0) {
+    sentence = `Codex's log is on this machine but could not be read: ${log.unread.map((u) => u.reason).join("; ")}.`;
+  } else if (found && log) {
+    sentence = `Codex's log (${int(log.lines)} lines${log.from !== null && log.to !== null ? `, ${MONTH_DAY(log.from)}\u2013${MONTH_DAY(log.to)}` : ""}) has no line naming the model that answered, so no reroute can be shown. Codex prunes its log, so it covers days, not months.`;
+  } else {
+    sentence = "There is no Codex log on this machine to read, so no reroute can be shown: its rollouts name only the model it requested.";
+  }
+  return {
+    versions,
+    responses: codex.length,
+    rolloutsRecordServed: input.signals.reroutes.length > 0,
+    checked: CODEX_CHECKED,
+    log: log ? {
+      databases: log.databases,
+      textLogs: log.textLogs,
+      unread: log.unread,
+      lines: log.lines,
+      from: log.from === null ? null : new Date(log.from).toISOString(),
+      to: log.to === null ? null : new Date(log.to).toISOString(),
+      served: served.length,
+      matched: served.filter((x) => x.requested === null).length
+    } : null,
+    reroutes,
+    sentence
+  };
 }
 function switchSentence(s) {
   const run = `${int(s.run.responses)} response${s.run.responses === 1 ? "" : "s"} over ${s.run.hours} h, ${s.run.ended === "switch" ? "until the next switch" : "to the end of the session"}`;
@@ -641,23 +723,220 @@ function sessionDetail(input, report, summary) {
   return { summary, runs, reasoning: reasoning.sort((a, b) => b.responses - a.responses) };
 }
 
-// src/collect.ts
-import { homedir } from "os";
-import path2 from "path";
-import { load } from "seatledger";
-
-// src/signals.ts
-import { createHash } from "crypto";
+// src/codex-log.ts
 import {
   createReadStream,
+  existsSync,
   mkdirSync,
   readFileSync,
   readdirSync,
   renameSync,
+  statSync,
   writeFileSync
-} from "fs";
-import path from "path";
-import { createInterface } from "readline";
+} from "node:fs";
+import path from "node:path";
+import { createInterface } from "node:readline";
+var MATCHES = /server reported model (\S+) \(matches requested model\)/;
+var DIFFERS = /server reported model (\S+) while requested model was (\S+)/;
+var PHRASE = "server reported model";
+function servedFrom(text) {
+  const d = DIFFERS.exec(text);
+  if (d) return { served: d[1], requested: d[2] };
+  const m = MATCHES.exec(text);
+  if (m) return { served: m[1], requested: null };
+  return void 0;
+}
+function codexHomeOf(sessionsDirs) {
+  const first = sessionsDirs[0];
+  return first ? path.dirname(first) : null;
+}
+var sqlite;
+function loadSqlite() {
+  sqlite ??= (async () => {
+    const original = process.emitWarning;
+    process.emitWarning = ((warning, ...rest) => {
+      const text = typeof warning === "string" ? warning : warning.message;
+      if (/SQLite/i.test(text)) return;
+      return original.call(process, warning, ...rest);
+    });
+    try {
+      return await import("node:sqlite");
+    } catch {
+      return null;
+    } finally {
+      process.emitWarning = original;
+    }
+  })();
+  return sqlite;
+}
+var DB_NAME = /^(?:logs|state)_\d+\.sqlite$/;
+function readDatabase(lib, file, since) {
+  const db = new lib.DatabaseSync(file, { readOnly: true });
+  try {
+    const table2 = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'logs'").get();
+    if (!table2) return null;
+    const columns = db.prepare("PRAGMA table_info(logs)").all().map(
+      (c) => c.name
+    );
+    const body = columns.includes("feedback_log_body") ? "feedback_log_body" : columns.includes("message") ? "message" : null;
+    if (!body || !columns.includes("ts")) return null;
+    const thread = columns.includes("thread_id") ? "thread_id" : "NULL";
+    const span = db.prepare("SELECT count(*) AS n, min(ts) AS a, max(ts) AS b FROM logs").get();
+    const rows = db.prepare(
+      `SELECT ts, ${thread} AS thread, ${body} AS body FROM logs WHERE ${body} LIKE ? AND ts >= ? ORDER BY ts`
+    ).all(`%${PHRASE}%`, since === void 0 ? 0 : Math.floor(since / 1e3));
+    const served = [];
+    for (const r of rows) {
+      const m = r.body ? servedFrom(r.body) : void 0;
+      if (m) served.push({ ts: r.ts * 1e3, thread: r.thread ?? null, ...m });
+    }
+    return {
+      lines: span.n,
+      from: span.a === null ? null : span.a * 1e3,
+      to: span.b === null ? null : span.b * 1e3,
+      served
+    };
+  } finally {
+    db.close();
+  }
+}
+var leadingTime = (line) => {
+  const t = Date.parse(line.slice(0, 40).split(/\s+/)[0] ?? "");
+  return Number.isFinite(t) ? t : void 0;
+};
+async function readTextLog(file, since) {
+  const served = [];
+  let lines = 0;
+  let from = null;
+  let to = null;
+  const stream = createReadStream(file, { encoding: "utf8", highWaterMark: 1 << 20 });
+  const rl = createInterface({ input: stream, crlfDelay: Infinity });
+  try {
+    for await (const raw of rl) {
+      lines += 1;
+      const ts = leadingTime(raw);
+      if (ts !== void 0) {
+        from ??= ts;
+        to = ts;
+      }
+      if (!raw.includes(PHRASE) || ts === void 0) continue;
+      if (since !== void 0 && ts < since) continue;
+      const m = servedFrom(raw);
+      const thread = /thread[._]id[=:]\s*"?([0-9a-f-]{8,})/i.exec(raw)?.[1] ?? null;
+      if (m) served.push({ ts, thread, ...m });
+    }
+  } finally {
+    rl.close();
+    stream.destroy();
+  }
+  return { lines, from, to, served };
+}
+var KEPT_FILE = "codex-served-v1.json";
+function keepServed(home, lines) {
+  const file = path.join(home, KEPT_FILE);
+  const all = /* @__PURE__ */ new Map();
+  const key = (l) => `${l.ts}|${l.thread ?? ""}|${l.served}|${l.requested ?? ""}`;
+  try {
+    const rows = JSON.parse(readFileSync(file, "utf8"));
+    if (rows.v === 1 && Array.isArray(rows.rows))
+      for (const [ts, thread, served, requested] of rows.rows) {
+        const l = { ts, thread, served, requested };
+        all.set(key(l), l);
+      }
+  } catch {
+  }
+  const before = all.size;
+  for (const l of lines) all.set(key(l), l);
+  const merged = [...all.values()].sort((a, b) => a.ts - b.ts);
+  if (all.size !== before || !existsSync(file)) {
+    try {
+      mkdirSync(home, { recursive: true, mode: 448 });
+      const tmp = `${file}.${process.pid}.tmp`;
+      const rows = merged.map((l) => [l.ts, l.thread, l.served, l.requested]);
+      writeFileSync(tmp, JSON.stringify({ v: 1, rows }), { mode: 384 });
+      renameSync(tmp, file);
+    } catch {
+    }
+  }
+  return merged;
+}
+async function readCodexLog(codexHome, since) {
+  const out = {
+    databases: 0,
+    textLogs: 0,
+    unread: [],
+    lines: 0,
+    from: null,
+    to: null,
+    served: []
+  };
+  if (!codexHome || !existsSync(codexHome)) return out;
+  const unread = /* @__PURE__ */ new Map();
+  const span = (r) => {
+    out.lines += r.lines;
+    if (r.from !== null) out.from = out.from === null ? r.from : Math.min(out.from, r.from);
+    if (r.to !== null) out.to = out.to === null ? r.to : Math.max(out.to, r.to);
+  };
+  let names;
+  try {
+    names = readdirSync(codexHome).filter((n) => DB_NAME.test(n));
+  } catch {
+    names = [];
+  }
+  const miss = (reason) => unread.set(reason, (unread.get(reason) ?? 0) + 1);
+  for (const name of names.sort()) {
+    const lib = await loadSqlite();
+    if (!lib) {
+      if (name.startsWith("logs_")) {
+        out.databases += 1;
+        miss(`this Node (${process.version}) cannot read SQLite; Node 22.13 or later can`);
+      }
+      continue;
+    }
+    try {
+      const r = readDatabase(lib, path.join(codexHome, name), since);
+      if (!r) continue;
+      out.databases += 1;
+      span(r);
+      out.served.push(...r.served);
+    } catch {
+      out.databases += 1;
+      miss("it could not be opened read-only");
+    }
+  }
+  const text = path.join(codexHome, "log", "codex-tui.log");
+  try {
+    if (existsSync(text) && statSync(text).isFile()) {
+      out.textLogs += 1;
+      const r = await readTextLog(text, since);
+      span(r);
+      out.served.push(...r.served);
+    }
+  } catch {
+    miss("the text log could not be read");
+  }
+  out.served.sort((a, b) => a.ts - b.ts);
+  out.unread = [...unread].map(([reason, count2]) => ({ reason, count: count2 }));
+  return out;
+}
+
+// src/collect.ts
+import { homedir } from "node:os";
+import path3 from "node:path";
+import { load } from "seatledger";
+
+// src/signals.ts
+import { createHash } from "node:crypto";
+import {
+  createReadStream as createReadStream2,
+  mkdirSync as mkdirSync2,
+  readFileSync as readFileSync2,
+  readdirSync as readdirSync2,
+  renameSync as renameSync2,
+  writeFileSync as writeFileSync2
+} from "node:fs";
+import path2 from "node:path";
+import { createInterface as createInterface2 } from "node:readline";
 import { listSourceFiles } from "seatledger";
 var obj = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : void 0;
 var str = (v) => typeof v === "string" ? v : void 0;
@@ -668,8 +947,8 @@ var time = (v) => {
   return Number.isFinite(t) ? t : void 0;
 };
 async function eachLine(file, wanted, onObject) {
-  const stream = createReadStream(file, { encoding: "utf8", highWaterMark: 1 << 20 });
-  const lines = createInterface({ input: stream, crlfDelay: Infinity });
+  const stream = createReadStream2(file, { encoding: "utf8", highWaterMark: 1 << 20 });
+  const lines = createInterface2({ input: stream, crlfDelay: Infinity });
   try {
     for await (const raw of lines) {
       if (raw.length === 0 || !wanted(raw)) continue;
@@ -709,6 +988,7 @@ async function readClaudeCodeSignals(file) {
   const choices = [];
   const fallbacks = [];
   const compactions = [];
+  const entrypoints = /* @__PURE__ */ new Map();
   await eachLine(
     file,
     (raw) => raw.includes('"usage"') || raw.includes("Set model to") || raw.includes("allback") || raw.includes("compact_boundary"),
@@ -721,6 +1001,9 @@ async function readClaudeCodeSignals(file) {
         const usage = obj(message?.usage);
         const model = str(message?.model);
         if (!message || !usage || !model || model === "<synthetic>") return;
+        const entrypoint = str(line.entrypoint);
+        if (entrypoint && session && ts !== void 0 && !entrypoints.has(session))
+          entrypoints.set(session, { session, ts, entrypoint });
         const messageId = str(message.id) ?? str(line.uuid);
         if (!messageId) return;
         const key = `${messageId}:${str(line.requestId) ?? ""}`;
@@ -780,22 +1063,32 @@ async function readClaudeCodeSignals(file) {
     windows: [],
     choices,
     fallbacks,
-    compactions
+    compactions,
+    reroutes: [],
+    entrypoints: [...entrypoints.values()]
   };
 }
 async function readCodexSignals(file) {
   const byKey = /* @__PURE__ */ new Map();
   const windows = [];
+  const reroutes = [];
   let thread = "";
   let lastWindow = -1;
   await eachLine(
     file,
-    (raw) => raw.includes('"token_count"') || raw.includes('"token_usage_record"') || raw.includes('"session_meta"'),
+    (raw) => raw.includes('"token_count"') || raw.includes('"token_usage_record"') || raw.includes('"session_meta"') || raw.includes('"model_reroute"'),
     (line) => {
       const payload = obj(line.payload) ?? {};
       const ts = time(line.timestamp);
       if (line.type === "session_meta") {
         thread = str(payload.id) ?? thread;
+        return;
+      }
+      if (line.type === "event_msg" && payload.type === "model_reroute") {
+        const from = str(payload.from_model);
+        const to = str(payload.to_model);
+        if (from && to && ts !== void 0)
+          reroutes.push({ session: thread, ts, from, to, reason: str(payload.reason) ?? "" });
         return;
       }
       if (line.type === "token_usage_record") {
@@ -828,22 +1121,25 @@ async function readCodexSignals(file) {
     }
   );
   for (const w of windows) if (!w.session) w.session = thread;
+  for (const r of reroutes) if (!r.session) r.session = thread;
   return {
     client: "codex",
     responses: [...byKey.values()],
     windows,
     choices: [],
     fallbacks: [],
-    compactions: []
+    compactions: [],
+    reroutes,
+    entrypoints: []
   };
 }
 var READERS = {
   "claude-code": readClaudeCodeSignals,
   codex: readCodexSignals
 };
-var SIGNALS_DIR = "signals-v1";
+var SIGNALS_DIR = "signals-v2";
 var encode = (e) => ({
-  v: 1,
+  v: 2,
   src: e.src,
   size: e.size,
   mtimeMs: e.mtimeMs,
@@ -852,7 +1148,9 @@ var encode = (e) => ({
   w: e.windows.map((w) => [w.session, w.ts, w.window]),
   c: e.choices.map((c) => [c.session, c.ts, c.model]),
   f: e.fallbacks.map((f) => [f.session, f.ts, f.from, f.to, f.trigger, f.main ? 1 : 0, f.version]),
-  k: e.compactions.map((k) => [k.session, k.ts, k.preTokens, k.trigger, k.main ? 1 : 0, k.version])
+  k: e.compactions.map((k) => [k.session, k.ts, k.preTokens, k.trigger, k.main ? 1 : 0, k.version]),
+  x: e.reroutes.map((x) => [x.session, x.ts, x.from, x.to, x.reason]),
+  e: e.entrypoints.map((x) => [x.session, x.ts, x.entrypoint])
 });
 var decode = (w) => ({
   src: w.src,
@@ -878,22 +1176,30 @@ var decode = (w) => ({
     trigger,
     main: main === 1,
     version
-  }))
+  })),
+  reroutes: (w.x ?? []).map(([session, ts, from, to, reason]) => ({
+    session,
+    ts,
+    from,
+    to,
+    reason
+  })),
+  entrypoints: (w.e ?? []).map(([session, ts, entrypoint]) => ({ session, ts, entrypoint }))
 });
 function readSignalCache(home) {
-  const dir = path.join(home, SIGNALS_DIR);
+  const dir = path2.join(home, SIGNALS_DIR);
   const out = /* @__PURE__ */ new Map();
   let names;
   try {
-    names = readdirSync(dir);
+    names = readdirSync2(dir);
   } catch {
     return out;
   }
   for (const name of names) {
     if (!name.endsWith(".json")) continue;
     try {
-      const wire = JSON.parse(readFileSync(path.join(dir, name), "utf8"));
-      if (wire.v !== 1 || typeof wire.src !== "string") continue;
+      const wire = JSON.parse(readFileSync2(path2.join(dir, name), "utf8"));
+      if (wire.v !== 2 || typeof wire.src !== "string") continue;
       out.set(wire.src, decode(wire));
     } catch {
     }
@@ -901,20 +1207,20 @@ function readSignalCache(home) {
   return out;
 }
 function writeSignalCache(home, entry) {
-  const dir = path.join(home, SIGNALS_DIR);
+  const dir = path2.join(home, SIGNALS_DIR);
   try {
-    mkdirSync(dir, { recursive: true, mode: 448 });
-    const file = path.join(
+    mkdirSync2(dir, { recursive: true, mode: 448 });
+    const file = path2.join(
       dir,
       createHash("sha256").update(entry.src).digest("hex").slice(0, 32) + ".json"
     );
     const tmp = `${file}.${process.pid}.tmp`;
-    writeFileSync(tmp, JSON.stringify(encode(entry)), { mode: 384 });
-    renameSync(tmp, file);
+    writeFileSync2(tmp, JSON.stringify(encode(entry)), { mode: 384 });
+    renameSync2(tmp, file);
   } catch {
   }
 }
-var under = (file, roots) => roots.some((r) => file === r || file.startsWith(r.endsWith(path.sep) ? r : r + path.sep));
+var under = (file, roots) => roots.some((r) => file === r || file.startsWith(r.endsWith(path2.sep) ? r : r + path2.sep));
 async function loadSignals(opts) {
   const clients = opts.clients ?? ["claude-code", "codex"];
   const useCache = opts.cache ?? true;
@@ -965,9 +1271,14 @@ async function loadSignals(opts) {
     windows: [],
     choices: [],
     fallbacks: [],
-    compactions: []
+    compactions: [],
+    reroutes: []
   };
+  const entrypoints = /* @__PURE__ */ new Map();
   for (const e of extracts) {
+    for (const x of e.entrypoints ?? [])
+      if (!entrypoints.has(x.session)) entrypoints.set(x.session, x.entrypoint);
+    all.reroutes.push(...e.reroutes ?? []);
     for (const r of e.responses) {
       const prev = responses.get(r.key);
       responses.set(
@@ -989,13 +1300,15 @@ async function loadSignals(opts) {
     windows: keyed(all.windows),
     choices: keyed(all.choices),
     fallbacks: keyed(all.fallbacks),
-    compactions: keyed(all.compactions)
+    compactions: keyed(all.compactions),
+    reroutes: keyed(all.reroutes),
+    entrypoints
   };
 }
 
 // src/collect.ts
 function whichModelHome(env = process.env) {
-  return env.WHICH_MODEL_HOME ? path2.resolve(env.WHICH_MODEL_HOME) : path2.join(homedir(), ".which-model");
+  return env.WHICH_MODEL_HOME ? path3.resolve(env.WHICH_MODEL_HOME) : path3.join(homedir(), ".which-model");
 }
 async function collect(opts) {
   const loaded = await load({
@@ -1013,19 +1326,23 @@ async function collect(opts) {
     ...opts.since !== void 0 ? { since: opts.since } : {},
     ...opts.clients ? { clients: opts.clients } : {}
   });
+  const codex = !opts.clients || opts.clients.includes("codex");
+  const codexLog = codex ? await readCodexLog(codexHomeOf(opts.dirs.codex)) : null;
+  if (codexLog && (opts.cache ?? true)) codexLog.served = keepServed(opts.home, codexLog.served);
   return {
     requests: loaded.requests.filter((r) => r.ts <= opts.now),
     signals,
     sources: loaded.sources,
+    codexLog,
     now: opts.now,
     since: opts.since
   };
 }
 
 // src/demo.ts
-import { mkdtempSync, rmSync } from "fs";
-import { tmpdir } from "os";
-import path4 from "path";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path5 from "node:path";
 import { textToSvg as seatledgerSvg } from "seatledger";
 
 // src/install.ts
@@ -1084,6 +1401,7 @@ function renderReport(report, opts = {}) {
     report.since ? `Since ${shortDate(report.since)} ${report.since.slice(0, 4)}` : "All history on this machine"
   );
   out.push("");
+  if (report.codex) out.push(...codexLines(report), "");
   const days = [...new Set(report.days.map((d) => d.day))].slice(0, opts.days ?? 7);
   if (days.length === 0) {
     out.push("No Claude Code or Codex responses found in this range.");
@@ -1178,6 +1496,45 @@ function renderReport(report, opts = {}) {
   out.push(...wrap(sourcesLine(report.sources), ""));
   return out.join("\n");
 }
+function codexLines(report) {
+  const c = report.codex;
+  const out = ["Codex: which model answered"];
+  const versions = c.versions.length === 0 ? "" : c.versions.length === 1 ? ` (Codex ${c.versions[0]} here)` : ` (Codex ${c.versions[0]}\u2013${c.versions[c.versions.length - 1]} here)`;
+  out.push(
+    ...wrap(
+      c.rolloutsRecordServed ? `Its rollouts${versions} record the model it requested, and a reroute event where one happened.` : `Its rollouts${versions} record the model it requested, never the one that answered. Codex ${c.checked.version} checks the server's model each turn and logs a mismatch as a reroute, but to its own log, not to a rollout.`,
+      "  "
+    )
+  );
+  out.push(...wrap(c.sentence, "  \u2022 ", "    "));
+  for (const r of c.reroutes.slice(0, 8))
+    out.push(
+      ...wrap(
+        `${when(r.at)}${r.thread ? `  thread ${shortSession(r.thread)}` : ""}  asked for ${r.requested}, answered by ${r.served}${r.reason ? ` (${r.reason})` : ""} \u2014 ${r.source === "log" ? "Codex's log" : "a rollout"}`,
+        "    ",
+        "      "
+      )
+    );
+  if (c.reroutes.length > 8)
+    out.push(`    \u2026 and ${int2(c.reroutes.length - 8)} more (--json lists them all)`);
+  const sdk = report.sdk.claudeAgentSdk;
+  if (sdk.sessions > 0)
+    out.push(
+      ...wrap(
+        `Claude Agent SDK: ${int2(sdk.sessions)} session${sdk.sessions === 1 ? "" : "s"} (${int2(sdk.responses)} responses) in the Claude Code transcripts, which record the model that answered; ${sdk.switches === 0 ? "no switch nothing explains" : `${int2(sdk.switches)} switch${sdk.switches === 1 ? "" : "es"} nothing you did explains, listed below`}.`,
+        "  \u2022 ",
+        "    "
+      )
+    );
+  out.push(
+    ...wrap(
+      `${report.sdk.openaiAgentsSdk[0].toUpperCase()}${report.sdk.openaiAgentsSdk.slice(1)}.`,
+      "  \u2022 ",
+      "    "
+    )
+  );
+  return out;
+}
 function reasoningTable(stats) {
   const rows = [
     ["model", "responses", "zero", "median", "p90", "p99", "max", "spikes"],
@@ -1230,8 +1587,8 @@ function renderSession(d) {
 }
 
 // src/synthetic.ts
-import { mkdirSync as mkdirSync2, writeFileSync as writeFileSync2 } from "fs";
-import path3 from "path";
+import { mkdirSync as mkdirSync3, writeFileSync as writeFileSync3 } from "node:fs";
+import path4 from "node:path";
 var DAY = 864e5;
 var MIN = 6e4;
 var SYNTHETIC_NOW = Date.parse("2026-10-07T14:00:00Z");
@@ -1258,11 +1615,11 @@ function writeSyntheticHistory(dir) {
   };
   const hex = (n) => Array.from({ length: n }, () => int3(0, 15).toString(16)).join("");
   const uuid = () => `${hex(8)}-${hex(4)}-4${hex(3)}-a${hex(3)}-${hex(12)}`;
-  const claudeDir = path3.join(dir, "claude", "projects");
-  const codexDir = path3.join(dir, "codex", "sessions");
+  const claudeDir = path4.join(dir, "claude", "projects");
+  const codexDir = path4.join(dir, "codex", "sessions");
   const cwd = "/home/dev/demo-app";
-  const project = path3.join(claudeDir, "-home-dev-demo-app");
-  mkdirSync2(project, { recursive: true });
+  const project = path4.join(claudeDir, "-home-dev-demo-app");
+  mkdirSync3(project, { recursive: true });
   const ccVersion = (t) => t < Date.parse("2026-08-01T00:00:00Z") ? "2.1.197" : t < Date.parse("2026-09-15T00:00:00Z") ? "2.1.229" : "2.1.270";
   for (let day = START; day <= SYNTHETIC_NOW; day += DAY) {
     const session = uuid();
@@ -1371,11 +1728,11 @@ function writeSyntheticHistory(dir) {
       t += (fallbackDay ? 4.2 : int3(5, 12)) * MIN;
     }
     if (lines.length === 0) continue;
-    writeFileSync2(path3.join(project, `${session}.jsonl`), lines.join("\n") + "\n");
+    writeFileSync3(path4.join(project, `${session}.jsonl`), lines.join("\n") + "\n");
     if (rand() < 0.4) {
       const agentId = hex(16);
-      const subDir = path3.join(project, session, "subagents");
-      mkdirSync2(subDir, { recursive: true });
+      const subDir = path4.join(project, session, "subagents");
+      mkdirSync3(subDir, { recursive: true });
       const sub = [];
       let st = day + 10 * 60 * MIN;
       for (let i = 0; i < 6 && st < SYNTHETIC_NOW - 60 * MIN; i++, st += 2 * MIN)
@@ -1406,7 +1763,7 @@ function writeSyntheticHistory(dir) {
           })
         );
       if (sub.length > 0)
-        writeFileSync2(path3.join(subDir, `agent-${agentId}.jsonl`), sub.join("\n") + "\n");
+        writeFileSync3(path4.join(subDir, `agent-${agentId}.jsonl`), sub.join("\n") + "\n");
     }
   }
   const cut = Date.parse("2026-07-13T00:00:00Z");
@@ -1415,13 +1772,13 @@ function writeSyntheticHistory(dir) {
     const start = day + startHour * 60 * MIN;
     if (start > SYNTHETIC_NOW - 2 * 60 * MIN) return;
     const d = new Date(day);
-    const folder = path3.join(
+    const folder = path4.join(
       codexDir,
       String(d.getUTCFullYear()),
       String(d.getUTCMonth() + 1).padStart(2, "0"),
       String(d.getUTCDate()).padStart(2, "0")
     );
-    mkdirSync2(folder, { recursive: true });
+    mkdirSync3(folder, { recursive: true });
     const cli = model === "gpt-5.6-sol" ? day < cut ? "0.144.2" : "0.144.3" : "0.144.3";
     const window = model === "gpt-5.6-sol" && day < cut ? 353400 : 258400;
     const lines = [
@@ -1486,8 +1843,8 @@ function writeSyntheticHistory(dir) {
       );
       t += int3(2, 6) * MIN;
     }
-    writeFileSync2(
-      path3.join(folder, `rollout-${iso(start).slice(0, 19).replace(/:/g, "-")}-${thread}.jsonl`),
+    writeFileSync3(
+      path4.join(folder, `rollout-${iso(start).slice(0, 19).replace(/:/g, "-")}-${thread}.jsonl`),
       lines.join("\n") + "\n"
     );
   };
@@ -1501,12 +1858,12 @@ function writeSyntheticHistory(dir) {
 
 // src/demo.ts
 async function runDemo() {
-  const dir = mkdtempSync(path4.join(tmpdir(), "which-model-demo-"));
+  const dir = mkdtempSync(path5.join(tmpdir(), "which-model-demo-"));
   try {
     const synth = writeSyntheticHistory(dir);
     const input = await collect({
       dirs: { "claude-code": [synth.claudeDir], codex: [synth.codexDir] },
-      home: path4.join(dir, "home"),
+      home: path5.join(dir, "home"),
       now: synth.now,
       cache: false
     });
@@ -1527,15 +1884,16 @@ function textToSvg(text) {
 }
 
 // src/hint.ts
-import { existsSync, mkdirSync as mkdirSync3, readFileSync as readFileSync2, writeFileSync as writeFileSync3 } from "fs";
-import path5 from "path";
 import { dayKey as dayKey2 } from "seatledger";
 var TEAM_LEDGER_URL = "https://agentwares-agentcheck.vercel.app/seatledger?ref=which-model";
 var HINT = `Your whole team's model mix, by model and by day, in one ledger (seatledger, free for up to 3 developers): ${TEAM_LEDGER_URL}`;
 export {
+  AGENT_SDK_ENTRYPOINTS,
+  CODEX_CHECKED,
   HINT,
   METHOD,
   MIN_SPIKE_TOKENS,
+  OPENAI_AGENTS_SDK,
   SPIKE_RATIO,
   STEP_LABEL,
   STEP_METRICS,
@@ -1543,18 +1901,22 @@ export {
   TEAM_LEDGER_URL,
   analyze,
   baseModel,
+  codexHomeOf,
   collect,
   differentModel,
   findSpikes,
+  keepServed,
   loadSignals,
   matchSessions,
   pickedModel,
   readClaudeCodeSignals,
+  readCodexLog,
   readCodexSignals,
   renderReport,
   renderSession,
   runDemo,
   screenshotText,
+  servedFrom,
   sessionDetail,
   textToSvg,
   whichModelHome,

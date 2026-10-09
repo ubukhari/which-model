@@ -28,7 +28,21 @@ export {
   type StepMetric,
   type Switch,
   type WindowChange,
+  type CodexReroute,
+  type CodexSection,
+  type SdkSection,
+  AGENT_SDK_ENTRYPOINTS,
+  CODEX_CHECKED,
+  OPENAI_AGENTS_SDK,
 } from "./analyze.js";
+export {
+  codexHomeOf,
+  keepServed,
+  readCodexLog,
+  servedFrom,
+  type CodexLog,
+  type ServedLine,
+} from "./codex-log.js";
 export { collect, whichModelHome, type RunOptions } from "./collect.js";
 export { runDemo, screenshotText, textToSvg, type Demo } from "./demo.js";
 export { HINT, TEAM_LEDGER_URL } from "./hint.js";
@@ -45,5 +59,7 @@ export {
   type SignalExtract,
   type Signals,
   type WindowReading,
+  type SessionEntry,
+  type CodexReroute as RolloutReroute,
 } from "./signals.js";
 export { writeSyntheticHistory, SYNTHETIC_NOW, type Synthetic } from "./synthetic.js";

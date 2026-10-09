@@ -15,6 +15,9 @@ and a test fails if it drifts from what the CLI prints.</sub>
 which-model reads the transcripts Claude Code and Codex already keep on your machine and tells
 you:
 
+- **which model answered Codex, as far as Codex records it**: its rollouts name only the model it
+  requested, so which-model reads the one place Codex writes the model the server reported, its
+  own log, and lists a Codex reroute only where that log shows one (see below);
 - **which models answered**, by day and by session;
 - **switches nothing you did explains**: a Claude Code session whose responses moved to another
   model with no `/model` from you, and what the transcript records just before it (a fallback
@@ -48,20 +51,36 @@ Also `--claude-dir`, `--codex-dir`, `--no-cache` and `--quiet`.
 | Client      | Where                                                              | Model it writes                                                      | Also read                                                                                                                                                       |
 | ----------- | ------------------------------------------------------------------ | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Claude Code | `~/.claude/projects/**/*.jsonl` (or `$CLAUDE_CONFIG_DIR/projects`) | `message.model`: the model **that answered** each response           | `output_tokens_details.thinking_tokens`; `isSidechain`/`agentId` (subagents); your `/model` output; `model_refusal_fallback` notices; `compact_boundary` points |
-| Codex CLI   | `~/.codex/sessions/**` and `archived_sessions/` (or `$CODEX_HOME`) | `turn_context.model`: the model it **requested**, never the answer's | `reasoning_output_tokens`; `model_context_window`                                                                                                               |
+| Codex CLI   | `~/.codex/sessions/**` and `archived_sessions/` (or `$CODEX_HOME`) | `turn_context.model`: the model it **requested**, never the answer's | `reasoning_output_tokens`; `model_context_window`; a `model_reroute` event, should a version ever write one to a rollout                                        |
+| Codex's log | `~/.codex/logs_*.sqlite` (read-only; Node 22.13 or later)          | `server reported model X`, and `while requested model was Y`         | only those lines: the two model ids, the time and the thread id                                                                                                 |
 
-Checked on 8 October 2026 against Claude Code transcripts written by 2.1.170–2.1.286 and Codex
-rollouts written by 0.144–0.159, reading key names, model ids, counts and dates only. The usage,
-models, versions and sessions come from [seatledger](https://github.com/agentwares/seatledger)'s
-readers, which which-model depends on rather than copies; which-model adds only the fields in the
-last column.
+Checked on 8 October 2026 against Claude Code transcripts written by 2.1.170–2.1.286, Codex
+rollouts written by 0.144–0.159 and Codex's source at
+[rust-v0.162.0](https://github.com/openai/codex/tree/rust-v0.162.0), reading key names, model ids,
+counts and dates only. The usage, models, versions and sessions come from
+[seatledger](https://github.com/agentwares/seatledger)'s readers, which which-model depends on
+rather than copies; which-model adds only the fields in the last column. The Claude Agent SDK
+writes its sessions into the same transcripts as Claude Code (`entrypoint` `sdk-ts`, `sdk-py` or
+`sdk-cli`), so they are read and counted the same way.
 
-Two things follow:
+Three things follow:
 
 - **A Claude Code reroute is visible**: the model field changes between two responses of one
-  session. Subagents run on their own models by design, so only the main thread counts.
-- **A Codex reroute is not**: Codex writes the model it asked for. What which-model can show for
-  Codex is reasoning tokens and the context window Codex reported.
+  session. Subagents run on their own models by design, so only the main thread counts. The same
+  holds for the Claude Agent SDK's sessions.
+- **A Codex reroute is not visible in a rollout.** Codex 0.162.0 has a reroute event
+  (`model_reroute`: the model requested, the model that answered, and the reason,
+  `high_risk_cyber_activity`), but its
+  [rollout policy](https://github.com/openai/codex/blob/rust-v0.162.0/codex-rs/rollout/src/policy.rs)
+  drops it as transient. What Codex keeps is
+  [one log line per turn](https://github.com/openai/codex/blob/rust-v0.162.0/codex-rs/core/src/session/mod.rs)
+  in its log database:
+  `server reported model X (matches requested model)`, or, when they differ,
+  `server reported model X while requested model was Y`. which-model reads only those lines, keeps
+  their model ids past Codex's pruning, and lists a reroute only where one is logged. When the log
+  has none, or cannot be read, it says so.
+- **The OpenAI Agents SDK keeps no local log by default**: its default exporter sends traces to
+  OpenAI's dashboard (`@openai/agents` 0.20, `openai-agents` 0.23), so there is nothing to read.
 
 ## What the vendors show (8 October 2026)
 
@@ -73,8 +92,9 @@ Two things follow:
   counts how long a session stayed on the other model.
   [anthropics/claude-code#78888](https://github.com/anthropics/claude-code/issues/78888) (18 July
   2026, open on 8 October) asks for a persistent indicator.
-- **Codex** records the model it requested and the context window it was given. It records no
-  answering model.
+- **Codex** records the model it requested and the context window it was given in its rollouts.
+  It checks the model the server reports on every turn, warns you when it differs, and logs that
+  line to its own log database, which it prunes; it writes no answering model to a rollout.
 
 which-model adds the history: when, on which version, for how many responses, across every
 session on the machine.
@@ -129,10 +149,11 @@ off. It is text printed on your screen: nothing is sent.
 ## What it keeps
 
 - Writes only to `~/.which-model` (or `$WHICH_MODEL_HOME`): `cache-v1/` (seatledger's counts per
-  transcript), `signals-v1/` (reasoning counts, model ids and the times of model changes and
-  fallback notices per transcript) and `hint.json` (the day the team line was last shown). The
-  caches mean a second run reads only what changed, and keep history the clients have since
-  deleted. Delete the directory to forget it.
+  transcript), `signals-v2/` (reasoning counts, model ids, each session's entrypoint and the times
+  of model changes and fallback notices per transcript), `codex-served-v1.json` (the model ids,
+  times and thread ids of Codex's "server reported model" lines, kept past Codex's pruning) and
+  `hint.json` (the day the team line was last shown). The caches mean a second run reads only what
+  changed, and keep history the clients have since deleted. Delete the directory to forget it.
 - Never stores or prints prompt, response, tool or file content.
 
 ## As a library

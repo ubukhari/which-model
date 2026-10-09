@@ -74,6 +74,9 @@ export function renderReport(report: Report, opts: { days?: number } = {}): stri
   );
   out.push("");
 
+  // 0. Codex first: what it records about the model that answered
+  if (report.codex) out.push(...codexLines(report), "");
+
   // 1. Which models answered, by day
   const days = [...new Set(report.days.map((d) => d.day))].slice(0, opts.days ?? 7);
   if (days.length === 0) {
@@ -175,6 +178,54 @@ export function renderReport(report: Report, opts: { days?: number } = {}): stri
   for (const n of report.notes) out.push(...wrap(n, ""));
   out.push(...wrap(sourcesLine(report.sources), ""));
   return out.join("\n");
+}
+
+/** The Codex section: what its rollouts and its own log record about the model that answered. */
+function codexLines(report: Report): string[] {
+  const c = report.codex!;
+  const out: string[] = ["Codex: which model answered"];
+  const versions =
+    c.versions.length === 0
+      ? ""
+      : c.versions.length === 1
+        ? ` (Codex ${c.versions[0]} here)`
+        : ` (Codex ${c.versions[0]}–${c.versions[c.versions.length - 1]} here)`;
+  out.push(
+    ...wrap(
+      c.rolloutsRecordServed
+        ? `Its rollouts${versions} record the model it requested, and a reroute event where one happened.`
+        : `Its rollouts${versions} record the model it requested, never the one that answered. Codex ${c.checked.version} checks the server's model each turn and logs a mismatch as a reroute, but to its own log, not to a rollout.`,
+      "  ",
+    ),
+  );
+  out.push(...wrap(c.sentence, "  • ", "    "));
+  for (const r of c.reroutes.slice(0, 8))
+    out.push(
+      ...wrap(
+        `${when(r.at)}${r.thread ? `  thread ${shortSession(r.thread)}` : ""}  asked for ${r.requested}, answered by ${r.served}${r.reason ? ` (${r.reason})` : ""} — ${r.source === "log" ? "Codex's log" : "a rollout"}`,
+        "    ",
+        "      ",
+      ),
+    );
+  if (c.reroutes.length > 8)
+    out.push(`    … and ${int(c.reroutes.length - 8)} more (--json lists them all)`);
+  const sdk = report.sdk.claudeAgentSdk;
+  if (sdk.sessions > 0)
+    out.push(
+      ...wrap(
+        `Claude Agent SDK: ${int(sdk.sessions)} session${sdk.sessions === 1 ? "" : "s"} (${int(sdk.responses)} responses) in the Claude Code transcripts, which record the model that answered; ${sdk.switches === 0 ? "no switch nothing explains" : `${int(sdk.switches)} switch${sdk.switches === 1 ? "" : "es"} nothing you did explains, listed below`}.`,
+        "  • ",
+        "    ",
+      ),
+    );
+  out.push(
+    ...wrap(
+      `${report.sdk.openaiAgentsSdk[0]!.toUpperCase()}${report.sdk.openaiAgentsSdk.slice(1)}.`,
+      "  • ",
+      "    ",
+    ),
+  );
+  return out;
 }
 
 function reasoningTable(stats: readonly ReasoningStats[]): string[] {

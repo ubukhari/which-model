@@ -1,5 +1,46 @@
 import { Client, SourceDirs, UsageRecord, SourceSummary } from 'seatledger';
 
+/** One "server reported model" line. */
+interface ServedLine {
+    ts: number;
+    /** Codex's thread id, when the line names one. */
+    thread: string | null;
+    served: string;
+    /** null when the line says the server's model matched the request. */
+    requested: string | null;
+}
+interface CodexLog {
+    /** Log databases and text logs found under Codex's home. */
+    databases: number;
+    textLogs: number;
+    /** Databases that could not be opened, and why (an old Node, a locked or corrupt file). */
+    unread: {
+        reason: string;
+        count: number;
+    }[];
+    /** Lines in what was read, and the time they span. */
+    lines: number;
+    from: number | null;
+    to: number | null;
+    /** The "server reported model" lines in range, oldest first. */
+    served: ServedLine[];
+}
+/** The models one log line names, or undefined when it is not a served-model line. */
+declare function servedFrom(text: string): {
+    served: string;
+    requested: string | null;
+} | undefined;
+/** Codex's home: the directory its sessions directory sits in. */
+declare function codexHomeOf(sessionsDirs: readonly string[]): string | null;
+/**
+ * Merge `lines` into which-model's copy under `home` and return everything kept. Codex prunes its
+ * log within days; this keeps the model ids, times and thread ids of the lines it has seen, so a
+ * reroute stays on record. Best effort: a copy that cannot be written costs history, not a report.
+ */
+declare function keepServed(home: string, lines: readonly ServedLine[]): ServedLine[];
+/** Every served-model line Codex logged on this machine, from its log database and text log. */
+declare function readCodexLog(codexHome: string | null, since?: number): Promise<CodexLog>;
+
 interface ResponseSignal {
     /** seatledger's request id for the same response. */
     key: string;
@@ -40,6 +81,24 @@ interface Compaction {
     main: boolean;
     version: string;
 }
+/**
+ * A Codex reroute written into a rollout: `event_msg` with `type: "model_reroute"`. Codex 0.162.0
+ * emits the event but its rollout policy drops it as transient, so no rollout on record has one;
+ * it is read here so the day a version persists it, it is counted.
+ */
+interface CodexReroute$1 {
+    session: string;
+    ts: number;
+    from: string;
+    to: string;
+    reason: string;
+}
+/** What started a Claude Code session: `cli`, `claude-desktop`, or the Agent SDK's `sdk-ts`, … */
+interface SessionEntry {
+    session: string;
+    ts: number;
+    entrypoint: string;
+}
 interface SignalExtract {
     client: Client;
     responses: ResponseSignal[];
@@ -47,6 +106,8 @@ interface SignalExtract {
     choices: ModelChoice[];
     fallbacks: FallbackNotice[];
     compactions: Compaction[];
+    reroutes: CodexReroute$1[];
+    entrypoints: SessionEntry[];
 }
 /** The model id in the client's "Set model to …" output, lower-cased, without decoration. */
 declare function pickedModel(text: string): string | undefined;
@@ -65,6 +126,9 @@ interface Signals {
     choices: ModelChoice[];
     fallbacks: FallbackNotice[];
     compactions: Compaction[];
+    reroutes: CodexReroute$1[];
+    /** Claude Code session → what started it (`cli`, `claude-desktop`, `sdk-ts`, …). */
+    entrypoints: Map<string, string>;
 }
 declare function loadSignals(opts: SignalOptions): Promise<Signals>;
 
@@ -94,6 +158,16 @@ declare function loadSignals(opts: SignalOptions): Promise<Signals>;
  * what moved, when, on which version, and what that is consistent with.
  */
 
+/** The Codex release whose source this was checked against, and when. */
+declare const CODEX_CHECKED: {
+    version: string;
+    tag: string;
+    date: string;
+};
+/** The Claude Agent SDK's sessions, as Claude Code's transcripts mark them. */
+declare const AGENT_SDK_ENTRYPOINTS: ReadonlySet<string>;
+/** What the OpenAI Agents SDK keeps on the machine it runs on (read 8 Oct 2026). */
+declare const OPENAI_AGENTS_SDK = "the OpenAI Agents SDK (@openai/agents 0.20, openai-agents 0.23) keeps no local log by default: its default trace exporter sends spans to OpenAI's Traces dashboard, so there is nothing on this machine to read";
 declare const MIN_SPIKE_TOKENS = 64;
 declare const SPIKE_RATIO = 8;
 interface ModelDay {
@@ -209,12 +283,61 @@ interface WindowChange {
     firstDayOnVersion: boolean;
     sentence: string;
 }
+/** A response Codex shows was answered by a model other than the one it requested. */
+interface CodexReroute {
+    at: string;
+    /** Codex's thread id, when the record names one. */
+    thread: string | null;
+    requested: string;
+    served: string;
+    /** `log`: Codex's own log line. `rollout`: a `model_reroute` event in a rollout. */
+    source: "log" | "rollout";
+    /** As Codex recorded it (`high_risk_cyber_activity`), or "" when the log line does not say. */
+    reason: string;
+}
+/** Which model answered Codex, from everything Codex writes locally. */
+interface CodexSection {
+    /** Codex versions whose rollouts are in this range. */
+    versions: string[];
+    responses: number;
+    /** Rollouts record the model Codex requested; true only if a rollout holds a reroute event. */
+    rolloutsRecordServed: boolean;
+    checked: typeof CODEX_CHECKED;
+    /** Codex's log database and text log; null when there is no Codex home to look in. */
+    log: {
+        databases: number;
+        textLogs: number;
+        unread: {
+            reason: string;
+            count: number;
+        }[];
+        lines: number;
+        from: string | null;
+        to: string | null;
+        /** "server reported model" lines, and those where the served model matched the request. */
+        served: number;
+        matched: number;
+    } | null;
+    reroutes: CodexReroute[];
+    sentence: string;
+}
+interface SdkSection {
+    /** Claude Agent SDK sessions in the Claude Code transcripts (entrypoint sdk-ts, sdk-py, sdk-cli). */
+    claudeAgentSdk: {
+        sessions: number;
+        responses: number;
+        switches: number;
+    };
+    openaiAgentsSdk: string;
+}
 interface Report {
     generatedAt: string;
     /** First day covered, YYYY-MM-DD, or null for all history. */
     since: string | null;
     method: string;
     sources: SourceSummary[];
+    codex: CodexSection | null;
+    sdk: SdkSection;
     days: ModelDay[];
     sessions: SessionSummary[];
     switches: Switch[];
@@ -236,6 +359,8 @@ interface AnalyzeInput {
     requests: readonly UsageRecord[];
     signals: Signals;
     sources: SourceSummary[];
+    /** What Codex logged about the model that answered; null when Codex was not read. */
+    codexLog?: CodexLog | null;
     now: number;
     since?: number | undefined;
 }
@@ -319,4 +444,4 @@ interface Synthetic {
 }
 declare function writeSyntheticHistory(dir: string): Synthetic;
 
-export { type AnalyzeInput, type Compaction, type Demo, type FallbackNotice, HINT, METHOD, MIN_SPIKE_TOKENS, type ModelChoice, type ModelCount, type ModelDay, type ReasoningStats, type Recorded, type Report, type ResponseSignal, type Run, type RunOptions, SPIKE_RATIO, STEP_LABEL, STEP_METRICS, SYNTHETIC_NOW, type SessionDetail, type SessionSummary, type SignalExtract, type Signals, type Spike, type Step, type StepMetric, type Switch, type Synthetic, TEAM_LEDGER_URL, type WindowChange, type WindowReading, analyze, baseModel, collect, differentModel, findSpikes, loadSignals, matchSessions, pickedModel, readClaudeCodeSignals, readCodexSignals, renderReport, renderSession, runDemo, screenshotText, sessionDetail, textToSvg, whichModelHome, writeSyntheticHistory };
+export { AGENT_SDK_ENTRYPOINTS, type AnalyzeInput, CODEX_CHECKED, type CodexLog, type CodexReroute, type CodexSection, type Compaction, type Demo, type FallbackNotice, HINT, METHOD, MIN_SPIKE_TOKENS, type ModelChoice, type ModelCount, type ModelDay, OPENAI_AGENTS_SDK, type ReasoningStats, type Recorded, type Report, type ResponseSignal, type CodexReroute$1 as RolloutReroute, type Run, type RunOptions, SPIKE_RATIO, STEP_LABEL, STEP_METRICS, SYNTHETIC_NOW, type SdkSection, type ServedLine, type SessionDetail, type SessionEntry, type SessionSummary, type SignalExtract, type Signals, type Spike, type Step, type StepMetric, type Switch, type Synthetic, TEAM_LEDGER_URL, type WindowChange, type WindowReading, analyze, baseModel, codexHomeOf, collect, differentModel, findSpikes, keepServed, loadSignals, matchSessions, pickedModel, readClaudeCodeSignals, readCodexLog, readCodexSignals, renderReport, renderSession, runDemo, screenshotText, servedFrom, sessionDetail, textToSvg, whichModelHome, writeSyntheticHistory };

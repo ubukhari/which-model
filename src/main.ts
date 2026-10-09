@@ -45,12 +45,15 @@ Options
   -h, --help / -v, --version
 
 What it reads: model ids, client versions, timestamps, session ids and token counts from
-~/.claude/projects and ~/.codex/sessions. It never prints or keeps prompt or response text, file
-paths or project names, so its output can be pasted into an issue as it is. It makes no network
-request and has no telemetry.
+~/.claude/projects and ~/.codex/sessions, and the lines Codex's own log (~/.codex/logs_*.sqlite,
+read-only, Node 22.13+) writes about the model the server reported. It never prints or keeps
+prompt or response text, file paths or project names, so its output can be pasted into an issue
+as it is. It makes no network request and has no telemetry.
 
-Claude Code records the model that answered each response. Codex records the model it requested,
-not the one that answered, so a Codex reroute cannot be seen from its rollouts.
+Claude Code (and the Claude Agent SDK, which writes the same transcripts) records the model that
+answered each response. Codex's rollouts record only the model it requested; Codex logs the
+server's model, and a mismatch as a reroute, to its log, and which-model lists a Codex reroute only
+where that log shows one. The OpenAI Agents SDK keeps no local log by default.
 Findings say what moved, when and on which version, and what it is consistent with; they never
 say why: this sees your machine, not the vendor's servers.
 Source: ${REPO}`;

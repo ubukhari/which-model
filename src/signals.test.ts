@@ -54,7 +54,10 @@ const assistant = (
   });
 
 const CLAUDE = [
-  assistant("msg_1", "req_1", "2026-07-02T00:50:00Z", "claude-fable-5", 100),
+  // a session the Claude Agent SDK started: the transcript says so in `entrypoint`
+  assistant("msg_1", "req_1", "2026-07-02T00:50:00Z", "claude-fable-5", 100, {
+    entrypoint: "sdk-ts",
+  }),
   // the same response again, its counts grown: the largest wins
   assistant("msg_1", "req_1", "2026-07-02T00:50:01Z", "claude-fable-5", 250),
   line({
@@ -159,6 +162,18 @@ const CODEX = [
       usage: { input_tokens: 100, output_tokens: 50, reasoning_output_tokens: 1034 },
     },
   }),
+  // Codex 0.162.0's reroute event, in the shape its protocol serialises; no rollout on record
+  // carries one (its rollout policy drops it), so this is what a version that kept it would write
+  line({
+    timestamp: "2026-07-13T10:01:30.000Z",
+    type: "event_msg",
+    payload: {
+      type: "model_reroute",
+      from_model: "gpt-5.3-codex",
+      to_model: "gpt-5.2",
+      reason: "high_risk_cyber_activity",
+    },
+  }),
 ].join("\n");
 
 describe("pickedModel", () => {
@@ -222,6 +237,14 @@ describe("Claude Code", () => {
     ]);
   });
 
+  it("keeps what started each session, which marks the Claude Agent SDK's", async () => {
+    const x = await readClaudeCodeSignals(file);
+    expect(x.entrypoints).toEqual([
+      { session: S, ts: Date.parse("2026-07-02T00:50:00Z"), entrypoint: "sdk-ts" },
+    ]);
+    expect(x.reroutes).toEqual([]);
+  });
+
   it("holds no text: no reply, notice, prompt or path survives into the extract", async () => {
     const json = JSON.stringify(await readClaudeCodeSignals(file));
     for (const s of ["never be kept", "never kept", "config file", "secret-project", "/home/"])
@@ -252,6 +275,19 @@ describe("Codex", () => {
       { session: T, ts: Date.parse("2026-07-13T10:00:05.000Z"), window: 258_400 },
     ]);
   });
+
+  it("reads a model_reroute event, should a rollout ever carry one", async () => {
+    const ours = await readCodexSignals(file);
+    expect(ours.reroutes).toEqual([
+      {
+        session: T,
+        ts: Date.parse("2026-07-13T10:01:30.000Z"),
+        from: "gpt-5.3-codex",
+        to: "gpt-5.2",
+        reason: "high_risk_cyber_activity",
+      },
+    ]);
+  });
 });
 
 describe("loadSignals", () => {
@@ -261,12 +297,16 @@ describe("loadSignals", () => {
     const first = await loadSignals({ dirs, home });
     expect(first.responses.size).toBeGreaterThan(3);
     expect(first.fallbacks).toHaveLength(1);
+    expect(first.reroutes).toHaveLength(1);
+    expect(first.entrypoints.get(S)).toBe("sdk-ts");
     rmSync(path.join(root, "claude", "p", `${S}.jsonl`));
     const second = await loadSignals({ dirs, home });
     expect(second.fallbacks).toHaveLength(1);
+    expect(second.entrypoints.get(S)).toBe("sdk-ts");
     expect(second.responses.get("msg_1:req_1")?.reasoning).toBe(250);
     const uncached = await loadSignals({ dirs, home, cache: false });
     expect(uncached.fallbacks).toHaveLength(0);
-    expect(SIGNALS_DIR).toBe("signals-v1");
+    // v2 added reroutes and entrypoints; a v1 entry is read again rather than trusted
+    expect(SIGNALS_DIR).toBe("signals-v2");
   });
 });
