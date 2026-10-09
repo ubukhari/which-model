@@ -1,0 +1,24 @@
+{
+  "name": "which-model",
+  "description": "which-model, from inside Claude Code: which model actually answered this machine's Claude Code and Codex sessions, read from the local transcripts. Open source, no account, nothing sent anywhere.",
+  "owner": {
+    "name": "agentwares",
+    "url": "https://github.com/agentwares"
+  },
+  "plugins": [
+    {
+      "name": "which-model",
+      "source": "./plugins/which-model",
+      "description": "/which-model:which-model runs `npx --allow-git=root github:agentwares/which-model` and explains which models answered by day and session, served-model switches nothing you did explains (with the fallback notices the client recorded), reasoning-token spikes at fixed values, and step changes in context ceiling or tokens per task.",
+      "category": "productivity",
+      "tags": [
+        "claude-code",
+        "codex",
+        "model-routing",
+        "model-fallback",
+        "reasoning-tokens",
+        "context-window"
+      ]
+    }
+  ]
+}

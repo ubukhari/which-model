@@ -1,0 +1,25 @@
+{
+  "name": "which-model",
+  "version": "0.1.0",
+  "description": "Which model actually answered this machine's Claude Code and Codex sessions: models by day and session, served-model switches nothing you did explains, reasoning-token spikes at fixed values, and step changes in context ceiling or tokens per task. Runs npx --allow-git=root github:agentwares/which-model locally; no account, no network, no LLM calls of its own.",
+  "author": {
+    "name": "agentwares",
+    "url": "https://github.com/agentwares"
+  },
+  "homepage": "https://agentwares-agentcheck.vercel.app/which-model",
+  "documentationUrl": "https://github.com/agentwares/which-model#readme",
+  "repository": "https://github.com/agentwares/which-model",
+  "privacyPolicyUrl": "https://agentwares-agentcheck.vercel.app/privacy",
+  "termsOfServiceUrl": "https://agentwares-agentcheck.vercel.app/terms",
+  "supportUrl": "https://agentwares.vercel.app/contact",
+  "license": "MIT",
+  "icon": "./.claude-plugin/icon.png",
+  "keywords": [
+    "claude-code",
+    "codex",
+    "model-routing",
+    "model-fallback",
+    "reasoning-tokens",
+    "context-window"
+  ]
+}

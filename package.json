@@ -1,0 +1,76 @@
+{
+  "name": "which-model",
+  "version": "0.1.0",
+  "description": "Which model actually answered your coding agent, from your own machine: Claude Code and Codex transcripts read locally for served-model switches and the notices before them, reasoning-token spikes at fixed values, and step changes in context ceiling or tokens per task. Sends nothing.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "which-model": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/agentwares/which-model.git"
+  },
+  "homepage": "https://agentwares-agentcheck.vercel.app/which-model",
+  "bugs": {
+    "url": "https://github.com/agentwares/which-model/issues"
+  },
+  "keywords": [
+    "claude-code",
+    "codex",
+    "model-routing",
+    "model-fallback",
+    "reasoning-tokens",
+    "context-window",
+    "served-model",
+    "ai-coding",
+    "coding-agents",
+    "transcripts",
+    "cli"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run",
+    "screenshot": "node scripts/screenshot.mjs",
+    "icon": "node scripts/icon.mjs",
+    "pretest": "pnpm run build:dist",
+    "pretypecheck": "pnpm run build:dist",
+    "format:check": "prettier --check .",
+    "format": "prettier --write .",
+    "build:dist": "tsup"
+  },
+  "dependencies": {
+    "seatledger": "^0.2.1"
+  },
+  "packageManager": "pnpm@9.15.9",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.4.1",
+    "eslint": "^10.9.1",
+    "prettier": "^3.9.6",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.69.0",
+    "vitest": "^4.1.11"
+  }
+}
